@@ -2,7 +2,7 @@
 // A base sai no alto-falante (ou no fone) para ele cantar no tempo, mas no vídeo entra a base LIMPA,
 // direto do arquivo, misturada com a voz do microfone. Assim o vazamento da caixa fica escondido.
 import { transpose } from './pitch.js';
-import { removeVoice } from './separate.js';
+import { removeVoice, prefetchModel } from './separate.js';
 
 const $ = (id) => document.getElementById(id);
 const app = $('app');
@@ -75,6 +75,7 @@ async function openSong(song) {
   busy('');
   const rv = $('removeVoice');
   rv.hidden = !song.file; rv.disabled = false; rv.textContent = 'Tirar a voz do cantor (IA)';
+  if (song.file) prefetchModel().catch(() => {}); // já deixa a IA baixada enquanto ele se prepara
   await openCamera();
   $('listen').disabled = false;
   $('recBtn').disabled = !S.cam;
