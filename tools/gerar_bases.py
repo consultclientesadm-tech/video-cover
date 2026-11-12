@@ -191,7 +191,7 @@ for s in SONGS:
         w.writeframes((tr.T * 32767).astype('<i2').tobytes())
     mp3 = os.path.join(outdir, s['id'] + '.mp3')
     subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', wav, '-b:a', '160k', mp3], check=True)
-    cat.append({'id': s['id'], 'titulo': s['titulo'], 'artista': s['artista'], 'tom': s['tom'], 'bpm': s['bpm'],
+    cat.append({'id': s['id'], 'titulo': s['titulo'], 'artista': s['artista'], 'tom': s['tom'], 'bpm': s['bpm'], 'compasso': s['compasso'],
                 'arquivo': 'bases/' + s['id'] + '.mp3', 'duracao': round(total, 2), 'letra': letra})
     print(s['id'], round(total, 1), 's')
 with open(os.path.join(outdir, 'catalogo.json'), 'w', encoding='utf-8') as f:

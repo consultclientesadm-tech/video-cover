@@ -9,8 +9,8 @@ const NOTES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 const COUNT = 5; // segundos de contagem antes da base
 
 const S = {
-  catalog: [], song: null, semis: 0,
-  ctx: null, original: null, buffers: new Map(), // semitons -> AudioBuffer já no tom
+  catalog: [], song: null, semis: 0, speed: 1,
+  ctx: null, original: null, buffers: new Map(), // 'semitons|andamento' -> AudioBuffer já pronto
   cam: null, mic: null, micNode: null, voiceGain: null, baseMixGain: null, dest: null, delay: null, tap: null,
   phones: false, recording: false, previewing: null, recorder: null, chunks: [], voice: [], voiceStartFrame: 0,
   baseStart: 0, raf: 0, blob: null, ext: 'mp4', mime: '',
@@ -57,16 +57,16 @@ const fmt = (t) => { t = Math.max(0, t | 0); return String((t / 60) | 0).padStar
 
 // ---------- Abrir a música: áudio + câmera ----------
 async function openSong(song) {
-  S.song = song; S.semis = 0; S.buffers.clear(); S.original = null;
+  S.song = song; S.semis = 0; S.speed = 1; S.buffers.clear(); S.original = null;
   show('studio');
-  setTone(); renderLyrics(0);
+  setTone(); setSpeed(); renderLyrics(0);
   $('recBtn').disabled = true; $('listen').disabled = true;
   busy('Carregando a base…');
   ensureAudio();
   try {
     const data = song.file ? await song.file.arrayBuffer() : await (await fetch(song.arquivo)).arrayBuffer();
     S.original = await S.ctx.decodeAudioData(data);
-    S.buffers.set(0, S.original);
+    S.buffers.set('0|1', S.original);
     if (!song.duracao) song.duracao = S.original.duration;
   } catch (e) {
     busy('Não consegui abrir esse áudio. Tente um MP3.'); return;
@@ -150,7 +150,7 @@ function closeCamera() {
 
 $('phones').onchange = async (e) => {
   S.phones = e.target.checked;
-  $('tip').textContent = S.phones ? 'Com fone a voz sai limpa. Pode usar o volume que quiser.' : 'Com fone o resultado fica melhor. Sem fone, deixe o volume do celular médio.';
+  $('tip').textContent = S.phones ? 'Voz limpa, volume à vontade.' : 'Com fone o resultado fica melhor.';
   if (S.cam) await openMic();
 };
 $('baseVol').oninput = applyVolumes;
@@ -170,6 +170,23 @@ function setTone() {
   $('toneDown').disabled = S.semis <= -6 || S.recording;
   $('toneUp').disabled = S.semis >= 6 || S.recording;
 }
+// Andamento: de 75% a 125%, em passos de 5%. Mostra o BPM real quando a música tem BPM no catálogo.
+const SPEED_MIN = 0.75, SPEED_MAX = 1.25;
+function setSpeed() {
+  const pct = Math.round(S.speed * 100);
+  $('speedBpm').textContent = S.song?.bpm ? Math.round(S.song.bpm * S.speed) + ' BPM' : pct + '%';
+  $('speedPct').textContent = pct === 100 ? 'original' : (pct > 100 ? '+' : '') + (pct - 100) + '%';
+  $('speedDown').disabled = S.speed <= SPEED_MIN + 1e-6 || S.recording;
+  $('speedUp').disabled = S.speed >= SPEED_MAX - 1e-6 || S.recording;
+}
+$('speedDown').onclick = () => changeSpeed(-0.05);
+$('speedUp').onclick = () => changeSpeed(0.05);
+async function changeSpeed(d) {
+  S.speed = Math.round(Math.max(SPEED_MIN, Math.min(SPEED_MAX, S.speed + d)) * 100) / 100;
+  setSpeed();
+  if (S.previewing) stopPreview();
+  prepareSoon();
+}
 $('toneDown').onclick = () => changeTone(-1);
 $('toneUp').onclick = () => changeTone(1);
 let toneJob = 0;
@@ -177,15 +194,24 @@ async function changeTone(d) {
   S.semis = Math.max(-6, Math.min(6, S.semis + d));
   setTone();
   if (S.previewing) stopPreview();
-  await bufferForTone();
+  prepareSoon();
+}
+// espera o artista parar de clicar (+ + +) para preparar a base uma vez só
+let prepTimer = 0;
+function prepareSoon() {
+  clearTimeout(prepTimer);
+  $('recBtn').disabled = true; $('listen').disabled = true;
+  busy('Ajustando a base…');
+  prepTimer = setTimeout(bufferForTone, 450);
 }
 async function bufferForTone() {
-  if (S.buffers.has(S.semis)) return S.buffers.get(S.semis);
-  const job = ++toneJob, semis = S.semis;
+  const key = S.semis + '|' + S.speed;
+  if (S.buffers.has(key)) return S.buffers.get(key);
+  const job = ++toneJob, semis = S.semis, speed = S.speed;
   $('recBtn').disabled = true; $('listen').disabled = true;
-  busy('Mudando o tom… 0%');
-  const buf = await transpose(S.ctx, S.original, semis, (p) => { if (job === toneJob) busy(`Mudando o tom… ${Math.round(p * 100)}%`); });
-  S.buffers.set(semis, buf);
+  busy('Ajustando a base… 0%');
+  const buf = await transpose(S.ctx, S.original, semis, speed, (p) => { if (job === toneJob) busy(`Ajustando a base… ${Math.round(p * 100)}%`); });
+  S.buffers.set(semis + '|' + speed, buf);
   if (job === toneJob) { busy(''); $('recBtn').disabled = !S.cam; $('listen').disabled = false; }
   return buf;
 }
@@ -236,7 +262,7 @@ async function startRecording() {
   ensureAudio();
   const buf = await bufferForTone();
   const ctx = S.ctx;
-  S.recording = true; setTone();
+  S.recording = true; setTone(); setSpeed();
   $('recBtn').classList.add('on'); $('listen').disabled = true; $('phones').disabled = true;
 
   // base: uma fonte para o alto-falante (para cantar junto) e a mesma, atrasada, para o vídeo
@@ -293,7 +319,7 @@ function finish() {
   cancelAnimationFrame(S.raf);
   $('count').hidden = true; $('recbadge').hidden = true;
   $('recBtn').classList.remove('on'); $('listen').disabled = false; $('phones').disabled = false;
-  setTone();
+  setTone(); setSpeed();
   if (S.recorder && S.recorder.state !== 'inactive') S.recorder.stop();
   else { renderLyrics(0); } // parou ainda na contagem: nada gravado
 }
@@ -314,7 +340,7 @@ $('again').onclick = toStudio;
 // ---------- Letra (karaokê) ----------
 function loop() {
   const t = S.ctx.currentTime - S.baseStart;
-  renderLyrics(t);
+  renderLyrics(t * S.speed); // a letra está marcada no tempo original da música
   const dur = (S.recording ? S.src?.buffer?.duration : S.previewing?.buffer?.duration) || 1;
   $('progress').style.width = Math.max(0, Math.min(100, (t / dur) * 100)) + '%';
   if (S.recording) $('rectime').textContent = fmt(t);
@@ -323,6 +349,7 @@ function loop() {
 function renderLyrics(t) {
   const L = S.song?.letra || [];
   const box = $('lyrics');
+  renderCue(t, L);
   if (!L.length) {
     box.classList.remove('free');
     $('lyCur').textContent = ''; $('lyCur').style.setProperty('--p', '0%');
@@ -344,6 +371,25 @@ function renderLyrics(t) {
   $('lyCur').textContent = cur.texto;
   $('lyCur').style.setProperty('--p', (p * 100).toFixed(1) + '%');
   $('lyNext').textContent = L[i + 1]?.texto || '';
+}
+
+// Marcação de entrada: antes da primeira linha (e de toda linha que vem depois de uma pausa), aparecem
+// setas, uma por tempo do compasso, acendendo no ritmo da música. Quando a última acende, é hora de cantar.
+function renderCue(t, L) {
+  const cue = $('cue'), bpm = S.song?.bpm, n = S.song?.compasso || 4;
+  if (!bpm || !L.length) { cue.hidden = true; return; }
+  const spb = 60 / bpm;
+  const i = L.findIndex((l, k) => t < l.inicio + 0.45 && (k === 0 || l.inicio - L[k - 1].fim >= spb));
+  const line = L[i];
+  const from = line ? line.inicio - (n - 1) * spb - spb * 0.5 : 0;
+  if (!line || t < from || (i > 0 && t < L[i - 1].fim)) { cue.hidden = true; return; }
+  if (cue.childElementCount !== n) cue.innerHTML = '<i></i>'.repeat(n);
+  const lit = Math.floor((t - (line.inicio - (n - 1) * spb)) / spb + 1e-3) + 1; // quantas setas acesas
+  [...cue.children].forEach((el, j) => {
+    el.classList.toggle('on', j < lit && lit < n);
+    el.classList.toggle('go', lit >= n);
+  });
+  cue.hidden = false;
 }
 
 // ---------- Salvar ----------

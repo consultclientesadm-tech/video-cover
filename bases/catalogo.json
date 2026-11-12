@@ -68,7 +68,8 @@
     "fim": 60.0,
     "texto": "diga adeus e vá-se embora"
    }
-  ]
+  ],
+  "compasso": 4
  },
  {
   "id": "peixe-vivo",
@@ -159,7 +160,8 @@
     "fim": 85.0,
     "texto": "sem a tua companhia"
    }
-  ]
+  ],
+  "compasso": 4
  },
  {
   "id": "amazing-grace",
@@ -230,6 +232,7 @@
     "fim": 110.714,
     "texto": "and grace will lead me home"
    }
-  ]
+  ],
+  "compasso": 3
  }
 ]

@@ -72,7 +72,7 @@ button { cursor: pointer; }
 .switch span::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #aaa; transition: .2s; }
 .switch input:checked + span { background: var(--y); } .switch input:checked + span::after { left: 21px; background: #000; }
 .vol { flex: 1; display: grid; gap: 2px; } .vol input { width: 100%; accent-color: var(--y); }
-.tip { font-size: 12px; color: var(--mut); text-align: center; }
+.tip { font-size: 12px; color: var(--mut); text-align: right; flex: 1; }
 .actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; position: relative; min-height: 72px; }
 .actions.col { flex-direction: column; align-items: stretch; min-height: 0; }
 .btn { border: 0; border-radius: 12px; padding: 12px 16px; background: var(--y); color: #000; font-weight: 700; box-shadow: var(--glow); }
@@ -94,3 +94,12 @@ button { cursor: pointer; }
 .app[data-screen=studio] { grid-template-rows: minmax(0, 1fr); }
 .app[data-screen=studio] .top { display: none; }
 .close { position: absolute; bottom: 12px; right: 12px; width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .55); color: #fff; font-size: 22px; line-height: 1; z-index: 2; }
+
+/* Andamento e tom lado a lado no celular */
+.panel .row .tone { gap: 6px; } .panel .row .tone button { width: 34px; height: 34px; font-size: 20px; }
+.panel .row .tone .lbl { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 9px; }
+/* Marcação de entrada: uma seta por tempo, acendendo no ritmo; a última é a hora de cantar */
+.cue { display: flex; justify-content: center; gap: 10px; margin-bottom: 8px; }
+.cue i { width: 0; height: 0; border-top: 9px solid transparent; border-bottom: 9px solid transparent; border-left: 15px solid rgba(255, 255, 255, .28); transition: border-color .05s, transform .1s; }
+.cue i.on { border-left-color: var(--y); filter: drop-shadow(0 0 6px rgba(255, 212, 0, .9)); transform: scale(1.15); }
+.cue i.go { border-left-color: #2ee59d; filter: drop-shadow(0 0 8px rgba(46, 229, 157, .9)); transform: scale(1.3); }

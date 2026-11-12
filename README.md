@@ -12,7 +12,10 @@ e masterizar.
   com fone ("Estou de fone"), fica desligado para a voz sair natural.
 - Contagem de 5 segundos, a base começa e a letra aparece no topo, perto da câmera frontal
   (o olhar do artista fica na lente).
-- Tom: −6 a +6 semitons, sem mudar a velocidade (`js/pitch.js`, motor Signalsmith Stretch, MIT).
+- Tom: −6 a +6 semitons, e andamento de 75% a 125% (mostra o BPM), um sem mexer no outro
+  (`js/pitch.js`, motor Signalsmith Stretch, MIT). A letra acompanha o andamento.
+- Marcação de entrada: antes da primeira linha (e depois de pausas) aparecem setas, uma por tempo do
+  compasso, acendendo no ritmo; quando todas ficam verdes é hora de cantar. Precisa de `bpm` e `compasso` no catálogo.
 - Vídeo final: câmera + voz + base limpa (atrasada o mesmo tanto que a voz leva para entrar, para casar),
   com limitador para não estourar. "Baixar só a voz" entrega a voz crua alinhada com a base (WAV).
 - `bases/`: bases de TESTE geradas por `tools/gerar_bases.py` (músicas de domínio público, instrumental
