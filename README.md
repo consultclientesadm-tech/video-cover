@@ -20,7 +20,9 @@ e masterizar.
   com limitador para não estourar. "Baixar só a voz" entrega a voz crua alinhada com a base (WAV).
 - `bases/`: bases de TESTE geradas por `tools/gerar_bases.py` (músicas de domínio público, instrumental
   sintetizado), com a letra sincronizada em `bases/catalogo.json`. Antes de lançar, entram as bases licenciadas.
-- "Usar minha base": abre qualquer áudio do celular (sem letra).
+- "Usar música do meu celular": abre qualquer áudio do aparelho (sem letra). Botão "Tirar a voz do cantor (IA)":
+  a IA Spleeter (Deezer, MIT) roda no próprio celular, num Worker (`js/separate.js`, `js/sep-worker.js`), e a base
+  vira música − voz. Modelo de ~40 MB em `assets/ai/`, baixado uma vez e guardado no aparelho. Nada vai para servidor.
 
 ## Rodar no computador
 

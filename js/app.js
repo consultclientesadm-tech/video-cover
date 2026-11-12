@@ -2,6 +2,7 @@
 // A base sai no alto-falante (ou no fone) para ele cantar no tempo, mas no vídeo entra a base LIMPA,
 // direto do arquivo, misturada com a voz do microfone. Assim o vazamento da caixa fica escondido.
 import { transpose } from './pitch.js';
+import { removeVoice } from './separate.js';
 
 const $ = (id) => document.getElementById(id);
 const app = $('app');
@@ -72,6 +73,8 @@ async function openSong(song) {
     busy('Não consegui abrir esse áudio. Tente um MP3.'); return;
   }
   busy('');
+  const rv = $('removeVoice');
+  rv.hidden = !song.file; rv.disabled = false; rv.textContent = 'Tirar a voz do cantor (IA)';
   await openCamera();
   $('listen').disabled = false;
   $('recBtn').disabled = !S.cam;
@@ -216,6 +219,27 @@ async function bufferForTone() {
   return buf;
 }
 function busy(t) { $('busy').hidden = !t; $('busy').textContent = t; }
+
+// ---------- Tirar a voz do cantor (música do celular) ----------
+$('removeVoice').onclick = async () => {
+  const rv = $('removeVoice');
+  if (S.previewing) stopPreview();
+  rv.disabled = true; $('recBtn').disabled = true; $('listen').disabled = true;
+  rv.textContent = 'Preparando a IA…';
+  try {
+    const bed = await removeVoice(S.ctx, S.original, {
+      onDownload: (p) => { if (p < 1) rv.textContent = `Baixando a IA (só na 1ª vez)… ${Math.round(p * 100)}%`; },
+      onProgress: (p) => { rv.textContent = `Tirando a voz… ${Math.round(p * 100)}%`; },
+    });
+    S.original = bed; S.buffers.clear(); S.buffers.set('0|1', bed);
+    rv.textContent = 'Voz do cantor removida ✓';
+    if (S.semis || S.speed !== 1) await bufferForTone();
+  } catch (e) {
+    console.error(e);
+    rv.disabled = false; rv.textContent = 'Não deu certo. Tocar para tentar de novo';
+  }
+  $('recBtn').disabled = !S.cam; $('listen').disabled = false;
+};
 
 // ---------- Ouvir a base (sem gravar) ----------
 $('listen').onclick = async () => {

@@ -103,3 +103,5 @@ button { cursor: pointer; }
 .cue i { width: 0; height: 0; border-top: 9px solid transparent; border-bottom: 9px solid transparent; border-left: 15px solid rgba(255, 255, 255, .28); transition: border-color .05s, transform .1s; }
 .cue i.on { border-left-color: var(--y); filter: drop-shadow(0 0 6px rgba(255, 212, 0, .9)); transform: scale(1.15); }
 .cue i.go { border-left-color: #2ee59d; filter: drop-shadow(0 0 8px rgba(46, 229, 157, .9)); transform: scale(1.3); }
+#removeVoice { border-color: var(--y); color: var(--y); font-weight: 700; }
+#removeVoice:disabled { opacity: .85; }
