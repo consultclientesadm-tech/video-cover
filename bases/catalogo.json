@@ -1,0 +1,235 @@
+[
+ {
+  "id": "ciranda",
+  "titulo": "Ciranda, Cirandinha",
+  "artista": "Domínio público",
+  "tom": "C",
+  "bpm": 104,
+  "arquivo": "bases/ciranda.mp3",
+  "duracao": 65.81,
+  "letra": [
+   {
+    "inicio": 4.615,
+    "fim": 9.231,
+    "texto": "Ciranda, cirandinha"
+   },
+   {
+    "inicio": 9.231,
+    "fim": 13.846,
+    "texto": "vamos todos cirandar"
+   },
+   {
+    "inicio": 13.846,
+    "fim": 18.462,
+    "texto": "vamos dar a meia volta"
+   },
+   {
+    "inicio": 18.462,
+    "fim": 23.077,
+    "texto": "volta e meia vamos dar"
+   },
+   {
+    "inicio": 23.077,
+    "fim": 27.692,
+    "texto": "O anel que tu me deste"
+   },
+   {
+    "inicio": 27.692,
+    "fim": 32.308,
+    "texto": "era vidro e se quebrou"
+   },
+   {
+    "inicio": 32.308,
+    "fim": 36.923,
+    "texto": "o amor que tu me tinhas"
+   },
+   {
+    "inicio": 36.923,
+    "fim": 41.538,
+    "texto": "era pouco e se acabou"
+   },
+   {
+    "inicio": 41.538,
+    "fim": 46.154,
+    "texto": "Por isso, dona Rosa"
+   },
+   {
+    "inicio": 46.154,
+    "fim": 50.769,
+    "texto": "entre dentro desta roda"
+   },
+   {
+    "inicio": 50.769,
+    "fim": 55.385,
+    "texto": "diga um verso bem bonito"
+   },
+   {
+    "inicio": 55.385,
+    "fim": 60.0,
+    "texto": "diga adeus e vá-se embora"
+   }
+  ]
+ },
+ {
+  "id": "peixe-vivo",
+  "titulo": "Peixe Vivo",
+  "artista": "Domínio público",
+  "tom": "G",
+  "bpm": 96,
+  "arquivo": "bases/peixe-vivo.mp3",
+  "duracao": 91.0,
+  "letra": [
+   {
+    "inicio": 5.0,
+    "fim": 10.0,
+    "texto": "Como pode o peixe vivo"
+   },
+   {
+    "inicio": 10.0,
+    "fim": 15.0,
+    "texto": "viver fora da água fria?"
+   },
+   {
+    "inicio": 15.0,
+    "fim": 20.0,
+    "texto": "Como pode o peixe vivo"
+   },
+   {
+    "inicio": 20.0,
+    "fim": 25.0,
+    "texto": "viver fora da água fria?"
+   },
+   {
+    "inicio": 25.0,
+    "fim": 30.0,
+    "texto": "Como poderei viver,"
+   },
+   {
+    "inicio": 30.0,
+    "fim": 35.0,
+    "texto": "como poderei viver"
+   },
+   {
+    "inicio": 35.0,
+    "fim": 40.0,
+    "texto": "sem a tua, sem a tua,"
+   },
+   {
+    "inicio": 40.0,
+    "fim": 45.0,
+    "texto": "sem a tua companhia?"
+   },
+   {
+    "inicio": 45.0,
+    "fim": 50.0,
+    "texto": "Os pastores desta aldeia"
+   },
+   {
+    "inicio": 50.0,
+    "fim": 55.0,
+    "texto": "já me fazem zombaria"
+   },
+   {
+    "inicio": 55.0,
+    "fim": 60.0,
+    "texto": "Os pastores desta aldeia"
+   },
+   {
+    "inicio": 60.0,
+    "fim": 65.0,
+    "texto": "já me fazem zombaria"
+   },
+   {
+    "inicio": 65.0,
+    "fim": 70.0,
+    "texto": "por me ver assim chorando,"
+   },
+   {
+    "inicio": 70.0,
+    "fim": 75.0,
+    "texto": "por me ver assim chorando"
+   },
+   {
+    "inicio": 75.0,
+    "fim": 80.0,
+    "texto": "sem a tua, sem a tua,"
+   },
+   {
+    "inicio": 80.0,
+    "fim": 85.0,
+    "texto": "sem a tua companhia"
+   }
+  ]
+ },
+ {
+  "id": "amazing-grace",
+  "titulo": "Amazing Grace",
+  "artista": "Domínio público (hino)",
+  "tom": "G",
+  "bpm": 84,
+  "arquivo": "bases/amazing-grace.mp3",
+  "duracao": 117.07,
+  "letra": [
+   {
+    "inicio": 7.857,
+    "fim": 16.429,
+    "texto": "Amazing grace, how sweet the sound"
+   },
+   {
+    "inicio": 16.429,
+    "fim": 25.0,
+    "texto": "that saved a wretch like me"
+   },
+   {
+    "inicio": 25.0,
+    "fim": 33.571,
+    "texto": "I once was lost, but now am found"
+   },
+   {
+    "inicio": 33.571,
+    "fim": 42.143,
+    "texto": "was blind, but now I see"
+   },
+   {
+    "inicio": 42.143,
+    "fim": 50.714,
+    "texto": "'Twas grace that taught my heart to fear"
+   },
+   {
+    "inicio": 50.714,
+    "fim": 59.286,
+    "texto": "and grace my fears relieved"
+   },
+   {
+    "inicio": 59.286,
+    "fim": 67.857,
+    "texto": "how precious did that grace appear"
+   },
+   {
+    "inicio": 67.857,
+    "fim": 76.429,
+    "texto": "the hour I first believed"
+   },
+   {
+    "inicio": 76.429,
+    "fim": 85.0,
+    "texto": "Through many dangers, toils and snares"
+   },
+   {
+    "inicio": 85.0,
+    "fim": 93.571,
+    "texto": "I have already come"
+   },
+   {
+    "inicio": 93.571,
+    "fim": 102.143,
+    "texto": "'tis grace hath brought me safe thus far"
+   },
+   {
+    "inicio": 102.143,
+    "fim": 110.714,
+    "texto": "and grace will lead me home"
+   }
+  ]
+ }
+]

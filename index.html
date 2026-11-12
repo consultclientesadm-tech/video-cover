@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Video Cover</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="app" id="app" data-screen="home">
+  <header class="top">
+    <button class="back" id="back" hidden aria-label="Voltar">‹</button>
+    <div class="brand"><span class="logo"></span><b>VIDEO</b><i>COVER</i></div>
+    <div class="topinfo" id="topinfo"></div>
+  </header>
+
+  <!-- 1. Escolher a música -->
+  <section class="screen home">
+    <div class="hero">
+      <h1>Grave seu <em>cover</em> com a base tocando</h1>
+      <p>Escolha a música, ajuste o tom, siga a letra e cante. A base sai limpa no vídeo.</p>
+    </div>
+    <ul class="songs" id="songs"></ul>
+    <label class="own">
+      <input type="file" id="ownFile" accept="audio/*,.mp3,.m4a,.wav" hidden>
+      <span class="plus">+</span>
+      <span><b>Usar minha base</b><small>MP3 ou outro áudio do seu celular</small></span>
+    </label>
+  </section>
+
+  <!-- 2. Gravar -->
+  <section class="screen studio">
+    <div class="cam">
+      <video id="preview" playsinline muted autoplay></video>
+      <button class="close" id="close" aria-label="Voltar para as músicas">✕</button>
+      <div class="camhint" id="camhint">Abrindo a câmera…</div>
+      <div class="count" id="count" hidden></div>
+      <div class="rec" id="recbadge" hidden><span></span><b id="rectime">00:00</b></div>
+      <div class="lyrics" id="lyrics">
+        <div class="cur" id="lyCur"></div>
+        <div class="nxt" id="lyNext"></div>
+      </div>
+      <div class="bar"><div id="progress"></div></div>
+    </div>
+    <div class="panel">
+      <div class="row">
+        <div class="tone">
+          <span class="lbl">Tom</span>
+          <button id="toneDown" aria-label="Descer o tom">−</button>
+          <div class="toneval"><b id="toneKey">C</b><small id="toneSemi">original</small></div>
+          <button id="toneUp" aria-label="Subir o tom">+</button>
+        </div>
+        <label class="switch"><input type="checkbox" id="phones"><span></span>Estou de fone</label>
+      </div>
+      <div class="row">
+        <label class="vol"><span class="lbl">Base no vídeo</span><input type="range" id="baseVol" min="0" max="1.5" step="0.01" value="0.8"></label>
+        <label class="vol"><span class="lbl">Voz no vídeo</span><input type="range" id="voiceVol" min="0" max="2" step="0.01" value="1"></label>
+      </div>
+      <div class="tip" id="tip">Com fone o resultado fica melhor. Sem fone, deixe o volume do celular médio.</div>
+      <div class="actions">
+        <button class="btn ghost" id="listen">Ouvir a base</button>
+        <button class="recbtn" id="recBtn" aria-label="Gravar"><span></span></button>
+        <div class="busy" id="busy" hidden></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Resultado -->
+  <section class="screen result">
+    <div class="cam"><video id="final" playsinline controls></video></div>
+    <div class="panel">
+      <div class="actions col">
+        <button class="btn" id="save">Salvar vídeo</button>
+        <button class="btn ghost" id="again">Gravar de novo</button>
+        <button class="btn ghost small" id="saveVoice">Baixar só a voz (WAV)</button>
+      </div>
+      <a class="upsell" href="https://studiocover.com.br" target="_blank" rel="noopener">
+        <b>Deixe seu áudio profissional</b>
+        <span>Leve este vídeo para o Studio Cover: voz afinada, mixada e masterizada, com filtro de cinema.</span>
+        <em>Conhecer o Studio Cover ›</em>
+      </a>
+    </div>
+  </section>
+</div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
