@@ -104,7 +104,8 @@ async function prepare() {
   prepUI(1, 0, 'Leva uns segundos. Na primeira vez a IA também é baixada.');
   prepAbort = new AbortController();
   try {
-    const bed = await removeVoice(S.ctx, S.original, {
+    const mix = S.original;
+    const bed = await removeVoice(S.ctx, mix, {
       signal: prepAbort.signal,
       onDownload: (p) => { if (p < 1) prepUI(1, p * 0.3, `Baixando a IA (só na primeira vez)… ${Math.round(p * 100)}%`); },
       onProgress: (p) => prepUI(1, 0.3 + p * 0.55, 'Tirando a voz do cantor original…'),
@@ -113,6 +114,12 @@ async function prepare() {
     S.original = bed; S.buffers.clear(); S.buffers.set('0|1', bed);
     findSinging(bed.voice, bed.sampleRate);
     if (S.sing) { prepUI(2, 0.88, 'Lendo a letra…'); await autoLyrics(bed.voice, bed.sampleRate, (p) => prepUI(2, 0.88 + p * 0.12)); }
+    if (S.song !== song) return;
+    // Só tira a voz onde tem letra cantada: introdução, solos e arranjos entre as estrofes ficam intactos
+    if (song.letra?.length && song.letra[0].palavras) {
+      const kept = keepArrangement(bed, mix, song.letra);
+      S.original = kept; S.buffers.clear(); S.buffers.set('0|1', kept);
+    }
     prepUI(3, 1);
     await new Promise((r) => setTimeout(r, 450));
     $('prep').hidden = true;
@@ -125,6 +132,36 @@ async function prepare() {
 }
 $('prepRetry').onclick = () => prepare();
 $('prepSkip').onclick = () => { prepAbort?.abort(); $('prep').hidden = true; lyricsHint(); };
+
+// A IA de separação às vezes leva junto solos de guitarra, sax e arranjos (ela acha que é "voz").
+// Como sabemos pela letra onde o cantor canta, a voz só é retirada nesses trechos (com folga
+// antes e depois). Fora deles a música original volta inteira, com transição suave.
+function keepArrangement(bed, mix, lines) {
+  const sr = bed.sampleRate, len = bed.length, PRE = 0.3, POST = 0.7, FADE = 0.25;
+  const zones = [];
+  for (const l of lines) {
+    const a = Math.max(0, l.palavras[0].s - PRE), b = l.palavras[l.palavras.length - 1].e + POST;
+    const z = zones[zones.length - 1];
+    if (z && a - z[1] < 1.2) z[1] = Math.max(z[1], b); else zones.push([a, b]);
+  }
+  const g = new Float32Array(len); // 1 = tira a voz, 0 = música original
+  for (const [a, b] of zones) {
+    const i0 = Math.max(0, Math.floor((a - FADE) * sr)), i1 = Math.min(len, Math.ceil((b + FADE) * sr));
+    for (let i = i0; i < i1; i++) {
+      const t = i / sr;
+      const w = t < a ? (t - (a - FADE)) / FADE : t > b ? ((b + FADE) - t) / FADE : 1;
+      g[i] = Math.max(g[i], Math.min(1, Math.max(0, w)));
+    }
+  }
+  const out = S.ctx.createBuffer(2, len, sr);
+  for (let c = 0; c < 2; c++) {
+    const m = mix.getChannelData(Math.min(c, mix.numberOfChannels - 1)), v = bed.voice[c], o = new Float32Array(len);
+    for (let i = 0; i < len; i++) o[i] = m[i] - v[i] * g[i];
+    out.copyToChannel(o, c);
+  }
+  out.voice = bed.voice;
+  return out;
+}
 
 // ---------- Passo a passo: 1 Tom · 2 Letra · 3 Gravar ----------
 function setStep(n) {
@@ -336,7 +373,7 @@ function prepareSoon() {
   clearTimeout(prepTimer);
   $('recBtn').disabled = true; $('listen').disabled = true;
   busy('Ajustando a base…');
-  prepTimer = setTimeout(bufferForTone, 450);
+  prepTimer = setTimeout(bufferForTone, 300);
 }
 async function bufferForTone() {
   const key = S.semis + '|' + S.speed;
