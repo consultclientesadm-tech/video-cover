@@ -1,6 +1,27 @@
 {
   "headers": [
-    { "source": "/assets/ai/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] },
-    { "source": "/js/vendor/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }] }
-  ]
+    {
+      "source": "/assets/ai/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/js/vendor/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        }
+      ]
+    }
+  ],
+  "functions": {
+    "api/transcribe.js": {
+      "maxDuration": 60
+    }
+  }
 }
