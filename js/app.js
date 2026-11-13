@@ -15,6 +15,8 @@ const S = {
   cam: null, mic: null, micNode: null, voiceGain: null, baseMixGain: null, dest: null, delay: null, tap: null,
   phones: false, recording: false, previewing: null, recorder: null, chunks: [], voice: [], voiceStartFrame: 0,
   baseStart: 0, raf: 0, blob: null, ext: 'mp4', mime: '',
+  // teleprompter: texto colado, velocidade (1–20), atraso do início (s), posição atual (px), pausado
+  pr: { text: '', speed: 5, delay: 0, pos: 0, paused: false, last: 0 },
 };
 
 // ---------- Telas ----------
@@ -60,6 +62,7 @@ const fmt = (t) => { t = Math.max(0, t | 0); return String((t / 60) | 0).padStar
 async function openSong(song) {
   S.song = song; S.semis = 0; S.speed = 1; S.buffers.clear(); S.original = null;
   show('studio');
+  setupPrompter(song);
   setTone(); setSpeed(); renderLyrics(0);
   $('recBtn').disabled = true; $('listen').disabled = true;
   busy('Carregando a base…');
@@ -74,7 +77,7 @@ async function openSong(song) {
   }
   busy('');
   const rv = $('removeVoice');
-  rv.hidden = !song.file; rv.disabled = false; rv.textContent = 'Tirar a voz do cantor (IA)';
+  rv.hidden = !song.file; rv.disabled = false; rv.textContent = 'Separar voz (IA)';
   if (song.file) prefetchModel().catch(() => {}); // já deixa a IA baixada enquanto ele se prepara
   await openCamera();
   $('listen').disabled = false;
@@ -233,7 +236,7 @@ $('removeVoice').onclick = async () => {
       onProgress: (p) => { rv.textContent = `Tirando a voz… ${Math.round(p * 100)}%`; },
     });
     S.original = bed; S.buffers.clear(); S.buffers.set('0|1', bed);
-    rv.textContent = 'Voz do cantor removida ✓';
+    rv.textContent = 'Voz separada ✓';
     if (S.semis || S.speed !== 1) await bufferForTone();
   } catch (e) {
     console.error(e);
@@ -253,6 +256,7 @@ $('listen').onclick = async () => {
   src.start(S.baseStart);
   src.onended = () => { if (S.previewing === src) stopPreview(); };
   S.previewing = src;
+  resetPrompter();
   $('listen').textContent = 'Parar';
   loop();
 };
@@ -262,6 +266,7 @@ function stopPreview() {
   S.previewing = null;
   $('listen').textContent = 'Ouvir a base';
   cancelAnimationFrame(S.raf); renderLyrics(0); $('progress').style.width = '0';
+  resetPrompter();
 }
 
 // ---------- Gravar ----------
@@ -312,6 +317,7 @@ async function startRecording() {
   S.baseStart = t0 + COUNT;
   S.voiceStartFrame = Math.round((S.baseStart + lat) * ctx.sampleRate);
   for (let i = 0; i < COUNT; i++) click(t0 + i, i === COUNT - 1);
+  resetPrompter();
   src.start(S.baseStart);
   src.onended = () => { if (S.recording) setTimeout(finish, 1200); };
   const recAt = S.baseStart - 0.4;
@@ -359,7 +365,7 @@ function done() {
 
 function stopAll() { stopPreview(); if (S.recording) { S.recording = false; try { S.src.stop(); } catch {} if (S.recorder?.state !== 'inactive') { S.recorder.onstop = null; S.recorder.stop(); } } cancelAnimationFrame(S.raf); $('count').hidden = true; $('recbadge').hidden = true; $('recBtn').classList.remove('on'); }
 
-function toStudio() { $('final').pause(); show('studio'); renderLyrics(0); $('progress').style.width = '0'; if (!S.cam) openCamera(); }
+function toStudio() { $('final').pause(); show('studio'); renderLyrics(0); resetPrompter(); $('progress').style.width = '0'; if (!S.cam) openCamera(); }
 $('again').onclick = toStudio;
 
 // ---------- Letra (karaokê) ----------
@@ -369,6 +375,7 @@ function loop() {
   const dur = (S.recording ? S.src?.buffer?.duration : S.previewing?.buffer?.duration) || 1;
   $('progress').style.width = Math.max(0, Math.min(100, (t / dur) * 100)) + '%';
   if (S.recording) $('rectime').textContent = fmt(t);
+  stepPrompter(t);
   if (S.recording || S.previewing) S.raf = requestAnimationFrame(loop);
 }
 function renderLyrics(t) {
@@ -458,9 +465,74 @@ function voiceWav() {
   return new Blob([b], { type: 'audio/wav' });
 }
 
-// Atalho de teste: ?musica=ciranda abre direto a música
-loadCatalog().then(() => {
-  const q = new URLSearchParams(location.search);
-  if (q.get('musica')) { const s = S.catalog.find((x) => x.id === q.get('musica')); if (s) openSong(s); }
+// ---------- Teleprompter ----------
+// O artista cola a letra; ela sobe pela tela na velocidade que ele escolher, começando depois do atraso
+// (para pular a introdução). Dá para arrastar com o dedo para acertar a posição e tocar para pausar.
+const PX = 4; // pixels por segundo para cada ponto de velocidade
+const prKey = () => 'vc-pr:' + (S.song?.file ? S.song.file.name + ':' + S.song.file.size : S.song?.id);
+function setupPrompter(song) {
+  const on = !!song.file;
+  $('prompter').hidden = !on; $('prow').hidden = !on; $('pasteBtn').hidden = !on; $('lyrics').hidden = on;
+  S.pr = { text: '', speed: 5, delay: 0, pos: 0, paused: false, last: 0 };
+  if (on) {
+    try { Object.assign(S.pr, JSON.parse(localStorage.getItem(prKey()) || '{}')); } catch {}
+    S.pr.pos = 0; S.pr.paused = false;
+  }
+  renderPrompterText(); renderPrompterCtl(); placePrompter();
+}
+function savePrompter() {
+  try { localStorage.setItem(prKey(), JSON.stringify({ text: S.pr.text, speed: S.pr.speed, delay: S.pr.delay })); } catch {}
+}
+function renderPrompterText() {
+  $('ptext').textContent = S.pr.text;
+  $('pempty').hidden = !!S.pr.text.trim();
+  $('pasteBtn').textContent = S.pr.text.trim() ? 'Editar letra' : 'Colar letra';
+}
+function renderPrompterCtl() {
+  $('pSpeed').textContent = S.pr.speed;
+  $('pDelay').textContent = S.pr.delay + 's';
+  $('pSlow').disabled = S.pr.speed <= 1; $('pFast').disabled = S.pr.speed >= 20;
+  $('dLess').disabled = S.pr.delay <= 0; $('dMore').disabled = S.pr.delay >= 60;
+}
+function placePrompter() { $('ptext').style.transform = `translateY(${-Math.round(S.pr.pos)}px)`; $('ppause').hidden = !S.pr.paused; }
+function resetPrompter() { S.pr.pos = 0; S.pr.paused = false; S.pr.last = 0; placePrompter(); }
+// chamada a cada quadro enquanto a música toca (t = segundos desde o começo da base)
+function stepPrompter(t) {
+  if ($('prompter').hidden || !S.pr.text) return;
+  const now = performance.now(), dt = S.pr.last ? Math.min(0.1, (now - S.pr.last) / 1000) : 0;
+  S.pr.last = now;
+  if (t >= S.pr.delay && !S.pr.paused && !drag) S.pr.pos = Math.min(maxPos(), S.pr.pos + dt * S.pr.speed * PX);
+  placePrompter();
+}
+const maxPos = () => Math.max(0, $('ptext').scrollHeight - innerHeight * 0.6 - 40);
+$('pSlow').onclick = () => { S.pr.speed = Math.max(1, S.pr.speed - 1); renderPrompterCtl(); savePrompter(); };
+$('pFast').onclick = () => { S.pr.speed = Math.min(20, S.pr.speed + 1); renderPrompterCtl(); savePrompter(); };
+$('dLess').onclick = () => { S.pr.delay = Math.max(0, S.pr.delay - 1); renderPrompterCtl(); savePrompter(); };
+$('dMore').onclick = () => { S.pr.delay = Math.min(60, S.pr.delay + 1); renderPrompterCtl(); savePrompter(); };
+$('pasteBtn').onclick = () => { $('lyricsText').value = S.pr.text; $('sheet').hidden = false; setTimeout(() => $('lyricsText').focus(), 50); };
+$('sheetCancel').onclick = () => { $('sheet').hidden = true; };
+$('sheetSave').onclick = () => {
+  S.pr.text = $('lyricsText').value.replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').trim();
+  $('sheet').hidden = true; resetPrompter(); renderPrompterText(); savePrompter();
+};
+// arrastar para ajustar a posição; um toque (sem arrastar) pausa ou continua
+let drag = null;
+$('prompter').addEventListener('pointerdown', (e) => { drag = { y: e.clientY, pos: S.pr.pos, moved: false }; $('prompter').setPointerCapture(e.pointerId); });
+$('prompter').addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  const dy = e.clientY - drag.y;
+  if (Math.abs(dy) > 6) drag.moved = true;
+  if (drag.moved) { S.pr.pos = Math.max(0, Math.min(maxPos(), drag.pos - dy)); placePrompter(); }
 });
+const endDrag = () => {
+  if (!drag) return;
+  const tap = !drag.moved; drag = null;
+  if (tap && (S.recording || S.previewing) && S.pr.text) { S.pr.paused = !S.pr.paused; placePrompter(); }
+};
+$('prompter').addEventListener('pointerup', endDrag);
+$('prompter').addEventListener('pointercancel', endDrag);
+
+// Atalho de teste: ?musica=ciranda abre uma base de teste do catálogo
+const q = new URLSearchParams(location.search);
+if (q.get('musica')) loadCatalog().then(() => { const s = S.catalog.find((x) => x.id === q.get('musica')); if (s) openSong(s); });
 window.__vc = S;

@@ -21,15 +21,22 @@
   <!-- 1. Escolher a música -->
   <section class="screen home">
     <div class="hero">
-      <h1>Grave seu <em>cover</em> com a base tocando</h1>
-      <p>Escolha a música, ajuste o tom, siga a letra e cante. A base sai limpa no vídeo.</p>
+      <h1>Grave seu <em>cover</em> com a música tocando</h1>
+      <p>Suba a música, a IA tira a voz do cantor, cole a letra no teleprompter e cante. A base sai limpa no vídeo.</p>
     </div>
-    <ul class="songs" id="songs"></ul>
-    <label class="own">
-      <input type="file" id="ownFile" accept="audio/*,.mp3,.m4a,.wav" hidden>
-      <span class="plus">+</span>
-      <span><b>Usar música do meu celular</b><small>Uma base, ou a música com voz: a IA tira a voz do cantor</small></span>
+    <label class="upload">
+      <input type="file" id="ownFile" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg" hidden>
+      <span class="upicon"></span>
+      <b>Subir música</b>
+      <small>MP3, M4A ou WAV do seu celular</small>
     </label>
+    <ol class="how">
+      <li><b>1</b>Suba a música (com ou sem voz)</li>
+      <li><b>2</b>Toque em <em>Separar voz</em></li>
+      <li><b>3</b>Cole a letra e ajuste a velocidade</li>
+      <li><b>4</b>Grave: a música começa sozinha</li>
+    </ol>
+    <ul class="songs" id="songs" hidden></ul>
   </section>
 
   <!-- 2. Gravar -->
@@ -40,6 +47,12 @@
       <div class="camhint" id="camhint">Abrindo a câmera…</div>
       <div class="count" id="count" hidden></div>
       <div class="rec" id="recbadge" hidden><span></span><b id="rectime">00:00</b></div>
+      <div class="prompter" id="prompter" hidden>
+        <div class="ptext" id="ptext"></div>
+        <div class="pguide"></div>
+        <div class="pempty" id="pempty"><span>Toque em <b>Colar letra</b> para usar o teleprompter</span></div>
+        <div class="ppause" id="ppause" hidden>❚❚ pausado · toque para continuar</div>
+      </div>
       <div class="lyrics" id="lyrics">
         <div class="cue" id="cue" hidden></div>
         <div class="cur" id="lyCur"></div>
@@ -62,15 +75,35 @@
           <button id="speedUp" aria-label="Mais rápido">+</button>
         </div>
       </div>
-      <div class="row">
-        <label class="vol"><span class="lbl">Base no vídeo</span><input type="range" id="baseVol" min="0" max="1.5" step="0.01" value="0.8"></label>
-        <label class="vol"><span class="lbl">Voz no vídeo</span><input type="range" id="voiceVol" min="0" max="2" step="0.01" value="1"></label>
+      <div class="row prow" id="prow" hidden>
+        <div class="tone">
+          <span class="lbl">Rolagem</span>
+          <button id="pSlow" aria-label="Letra mais devagar">−</button>
+          <div class="toneval"><b id="pSpeed">5</b><small>velocidade</small></div>
+          <button id="pFast" aria-label="Letra mais rápida">+</button>
+        </div>
+        <div class="tone">
+          <span class="lbl">Começa</span>
+          <button id="dLess" aria-label="Letra começa antes">−</button>
+          <div class="toneval"><b id="pDelay">0s</b><small>depois</small></div>
+          <button id="dMore" aria-label="Letra começa depois">+</button>
+        </div>
       </div>
+      <details class="more">
+        <summary>Volumes do vídeo</summary>
+        <div class="row">
+          <label class="vol"><span class="lbl">Base no vídeo</span><input type="range" id="baseVol" min="0" max="1.5" step="0.01" value="0.8"></label>
+          <label class="vol"><span class="lbl">Voz no vídeo</span><input type="range" id="voiceVol" min="0" max="2" step="0.01" value="1"></label>
+        </div>
+      </details>
       <div class="row">
         <label class="switch"><input type="checkbox" id="phones"><span></span>Estou de fone</label>
         <div class="tip" id="tip">Com fone o resultado fica melhor.</div>
       </div>
-      <button class="btn ghost small" id="removeVoice" hidden>Tirar a voz do cantor (IA)</button>
+      <div class="row twin">
+        <button class="btn ghost small paste" id="pasteBtn" hidden>Colar letra</button>
+        <button class="btn ghost small" id="removeVoice" hidden>Separar voz (IA)</button>
+      </div>
       <div class="actions">
         <button class="btn ghost" id="listen">Ouvir a base</button>
         <button class="recbtn" id="recBtn" aria-label="Gravar"><span></span></button>
@@ -78,6 +111,19 @@
       </div>
     </div>
   </section>
+
+  <!-- Colar a letra -->
+  <div class="sheet" id="sheet" hidden>
+    <div class="sheetbox">
+      <b>Cole a letra da música</b>
+      <small>Ela vai subir na tela como um teleprompter enquanto você canta. Linhas em branco viram pausas.</small>
+      <textarea id="lyricsText" placeholder="Cole aqui a letra…"></textarea>
+      <div class="row">
+        <button class="btn ghost" id="sheetCancel">Cancelar</button>
+        <button class="btn" id="sheetSave">Usar esta letra</button>
+      </div>
+    </div>
+  </div>
 
   <!-- 3. Resultado -->
   <section class="screen result">

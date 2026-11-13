@@ -5,6 +5,13 @@ e grava o vídeo cantando. A base toca no alto-falante ou no fone para ele canta
 entra a base limpa, direto do arquivo, misturada com a voz. Depois oferecemos o Studio Cover para afinar
 e masterizar.
 
+## Fluxo atual (teste)
+
+O artista sobe a música dele (com ou sem voz), toca em **Separar voz (IA)**, cola a letra no **teleprompter**
+(velocidade de rolagem 1–20, atraso do início em segundos, arrastar para ajustar, tocar para pausar; fica salvo
+por música no aparelho) e grava: a música começa sozinha depois da contagem. O catálogo de bases de teste
+continua no código (`?musica=ciranda`), fora da tela inicial.
+
 ## Como funciona
 
 - `index.html`, `css/app.css`, `js/app.js`: o app (sem servidor, roda todo no navegador).
