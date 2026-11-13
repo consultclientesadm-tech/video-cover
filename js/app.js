@@ -401,7 +401,7 @@ async function startRecording() {
   const buf = await bufferForTone();
   const ctx = S.ctx;
   S.recording = true; setTone(); setSpeed();
-  $('recBtn').classList.add('on'); $('panel').classList.add('rec'); $('listen').disabled = true; $('phones').disabled = true;
+  $('recBtn').classList.add('on'); $('panel').classList.add('gravando'); $('listen').disabled = true; $('phones').disabled = true;
 
   // base: uma fonte para o alto-falante (para cantar junto) e a mesma, atrasada, para o vídeo
   const src = ctx.createBufferSource();
@@ -456,7 +456,7 @@ function finish() {
   S.recording = false;
   try { S.src.onended = null; S.src.stop(); } catch {}
   cancelAnimationFrame(S.raf); cancelAnimationFrame(S.drawRaf);
-  $('count').hidden = true; $('recbadge').hidden = true; $('panel').classList.remove('rec');
+  $('count').hidden = true; $('recbadge').hidden = true; $('panel').classList.remove('gravando');
   $('recBtn').classList.remove('on'); $('listen').disabled = false; $('phones').disabled = false;
   setTone(); setSpeed();
   if (S.recorder && S.recorder.state !== 'inactive') S.recorder.stop();
