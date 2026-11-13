@@ -379,6 +379,7 @@ function stopPreview() {
 
 // ---------- Gravar ----------
 $('recBtn').onclick = () => (S.recording ? finish() : startRecording());
+$('stopBtn').onclick = () => finish();
 
 function pickMime() {
   const opts = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
@@ -401,7 +402,7 @@ async function startRecording() {
   const buf = await bufferForTone();
   const ctx = S.ctx;
   S.recording = true; setTone(); setSpeed();
-  $('recBtn').classList.add('on'); $('panel').classList.add('gravando'); $('listen').disabled = true; $('phones').disabled = true;
+  $('recBtn').classList.add('on'); app.classList.add('gravando'); $('listen').disabled = true; $('phones').disabled = true;
 
   // base: uma fonte para o alto-falante (para cantar junto) e a mesma, atrasada, para o vídeo
   const src = ctx.createBufferSource();
@@ -456,7 +457,7 @@ function finish() {
   S.recording = false;
   try { S.src.onended = null; S.src.stop(); } catch {}
   cancelAnimationFrame(S.raf); cancelAnimationFrame(S.drawRaf);
-  $('count').hidden = true; $('recbadge').hidden = true; $('panel').classList.remove('gravando');
+  $('count').hidden = true; $('recbadge').hidden = true; app.classList.remove('gravando');
   $('recBtn').classList.remove('on'); $('listen').disabled = false; $('phones').disabled = false;
   setTone(); setSpeed();
   if (S.recorder && S.recorder.state !== 'inactive') S.recorder.stop();
@@ -473,7 +474,7 @@ function done() {
   requestAnimationFrame(fitResult);
 }
 
-function stopAll() { prepAbort?.abort(); $('prep').hidden = true; cancelAnimationFrame(S.drawRaf); stopPreview(); if (S.recording) { S.recording = false; try { S.src.stop(); } catch {} if (S.recorder?.state !== 'inactive') { S.recorder.onstop = null; S.recorder.stop(); } } cancelAnimationFrame(S.raf); $('count').hidden = true; $('recbadge').hidden = true; $('recBtn').classList.remove('on'); }
+function stopAll() { app.classList.remove('gravando'); prepAbort?.abort(); $('prep').hidden = true; cancelAnimationFrame(S.drawRaf); stopPreview(); if (S.recording) { S.recording = false; try { S.src.stop(); } catch {} if (S.recorder?.state !== 'inactive') { S.recorder.onstop = null; S.recorder.stop(); } } cancelAnimationFrame(S.raf); $('count').hidden = true; $('recbadge').hidden = true; $('recBtn').classList.remove('on'); }
 
 function toStudio() { $('final').pause(); show('studio'); renderLyrics(0); resetPrompter(); $('progress').style.width = '0'; if (!S.cam) openCamera(); }
 $('again').onclick = toStudio;
