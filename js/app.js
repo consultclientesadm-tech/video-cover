@@ -128,10 +128,13 @@ $('prepSkip').onclick = () => { prepAbort?.abort(); $('prep').hidden = true; lyr
 
 // ---------- Passo a passo: 1 Tom · 2 Letra · 3 Gravar ----------
 function setStep(n) {
+  stopPreview(); // trocou de passo: a música para sozinha (só volta quando ele tocar em Ouvir ou gravar)
   $('panel').dataset.step = n;
   [...$('steps').children].forEach((b) => { const k = +b.dataset.go; b.classList.toggle('cur', k === n); b.classList.toggle('done', k < n); });
-  $('frame').hidden = n !== 3; placeFrame();
+  $('frame').hidden = n !== 3; placeFrame(); pulseListen();
 }
+// no passo do tom, o Ouvir pulsa enquanto está parado: chama para ouvir o original e depois o tom escolhido
+function pulseListen() { $('listen').classList.toggle('pulse', $('panel').dataset.step === '1' && !S.previewing && !S.recording); }
 $('steps').onclick = (e) => { const b = e.target.closest('button'); if (b && !S.recording) setStep(+b.dataset.go); };
 $('nextBtn').onclick = () => setStep(Math.min(3, +$('panel').dataset.step + 1));
 function lyricsHint() {
@@ -352,14 +355,14 @@ $('listen').onclick = async () => {
   src.onended = () => { if (S.previewing === src) stopPreview(); };
   S.previewing = src;
   resetPrompter();
-  $('listen').textContent = 'Parar';
+  $('listen').textContent = 'Parar'; pulseListen();
   loop();
 };
 function stopPreview() {
   if (!S.previewing) return;
   try { S.previewing.stop(); } catch {}
   S.previewing = null;
-  $('listen').textContent = 'Ouvir';
+  $('listen').textContent = 'Ouvir'; pulseListen();
   cancelAnimationFrame(S.raf); renderLyrics(0); $('progress').style.width = '0';
   resetPrompter();
 }

@@ -208,3 +208,5 @@ button { cursor: pointer; }
 .prep small { color: var(--mut); }
 .prepbtns { display: grid; gap: 8px; width: 100%; }
 .lyrics, .prompter, .close, .count, .rec { z-index: 2; }
+#listen.pulse:not(:disabled) { border-color: var(--y); color: var(--y); animation: pulse 1.4s ease-out infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 212, 0, .7); } 70% { box-shadow: 0 0 0 14px rgba(255, 212, 0, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 212, 0, 0); } }
