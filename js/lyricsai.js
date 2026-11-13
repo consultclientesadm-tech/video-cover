@@ -45,6 +45,18 @@ function cuts(totalSec, seg) {
 
 export class SemChave extends Error {}
 
+// Frases que o Whisper costuma inventar em introdução/instrumental (vêm de legendas de vídeos)
+const JUNK = /amara\.org|legendas? (pela|por|de)|legendado|tradução|transcri[çc]|inscreva-se|se inscreva|deixe seu like|ative o sininho|obrigad[oa] por assistir|subtitles? by|thanks for watching|please subscribe|♪/i;
+
+// Fica só com palavras cantadas: dentro de um trecho em que o cantor original canta (a IA de separação
+// mostra onde) e sem marcações como [Música], (Refrão), ♪ ou "Título - Artista".
+function clean(words, seg) {
+  const near = (w) => !seg?.length || seg.some(([x, y]) => w.e > x - 0.4 && w.s < y + 0.4);
+  let out = words.filter((w) => near(w) && !/^[\[(♪*#]|[\])]$|^♪+$/.test(w.w));
+  out = out.map((w) => ({ ...w, w: w.w.replace(/[♪*#]/g, '').trim() })).filter((w) => w.w && !/^[-–—_.,:;!?]+$/.test(w.w));
+  return out;
+}
+
 // Devolve as linhas do karaokê: [{ inicio, fim, texto, palavras: [{ w, s, e }] }] (tempo da música original)
 export async function transcribe(voice, sr, seg, { onProgress = () => {} } = {}) {
   const pcm = await toMono16k(voice, sr);
@@ -58,9 +70,12 @@ export async function transcribe(voice, sr, seg, { onProgress = () => {} } = {})
     if (r.status === 503 && j.erro === 'sem_chave') throw new SemChave(j.msg);
     if (!r.ok) throw new Error(j.msg || `transcrição ${r.status}`);
     onProgress(++done / parts.length);
-    return (j.words || []).map((w) => ({ w: String(w.w).trim(), s: w.s + a, e: w.e + a })).filter((w) => w.w);
+    // tira trechos que a IA inventa (créditos de legenda, "inscreva-se", títulos) antes de juntar
+    const bad = (j.segments || []).filter((g) => JUNK.test(g.t || '')).map((g) => [g.s, g.e]);
+    return (j.words || []).map((w) => ({ w: String(w.w).trim(), s: w.s + a, e: w.e + a }))
+      .filter((w) => w.w && !bad.some(([x, y]) => w.s + 0.01 >= x + a && w.e - 0.01 <= y + a));
   }));
-  return toLines(results.flat().sort((x, y) => x.s - y.s));
+  return toLines(clean(results.flat().sort((x, y) => x.s - y.s), seg));
 }
 
 // Palavras → linhas: quebra numa pausa de respiração, depois de pontuação ou a cada ~8 palavras
@@ -73,7 +88,9 @@ export function toLines(words) {
   };
   for (let i = 0; i < words.length; i++) {
     const w = words[i], prev = cur[cur.length - 1];
-    if (prev && (w.s - prev.e > 0.7 || cur.length >= 8 || (/[.,!?;:]$/.test(prev.w) && cur.length >= 3))) flush();
+    const len = cur.reduce((n, x) => n + x.w.length + 1, 0) + w.w.length;
+    // linha curta (cabe numa linha só no celular): quebra na respiração, na pontuação ou passando de ~30 letras
+    if (prev && (w.s - prev.e > 0.7 || cur.length >= 7 || len > 30 || (/[.,!?;:]$/.test(prev.w) && cur.length >= 3))) flush();
     cur.push(w);
   }
   flush();

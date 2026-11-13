@@ -222,3 +222,6 @@ button { cursor: pointer; }
   .result .upsell span { display: none; }
   .result .cam video { max-height: 52vh; max-height: 52dvh; }
 }
+/* letra da IA: cada palavra tem o próprio preenchimento (frase quebrada em duas linhas acende certo) */
+.lyrics .cur.words { background: none; color: #fff; -webkit-background-clip: border-box; background-clip: border-box; }
+.lyrics .cur.words .w { color: transparent; background: linear-gradient(90deg, var(--y) var(--p, 0%), #fff var(--p, 0%)); -webkit-background-clip: text; background-clip: text; }

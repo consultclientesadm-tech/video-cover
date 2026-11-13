@@ -491,22 +491,36 @@ function loop() {
   stepPrompter(t);
   if (S.recording || S.previewing) S.raf = requestAnimationFrame(loop);
 }
+function wordLine(line, t) {
+  const el = $('lyCur');
+  if (el._line !== line) {
+    el._line = line; el.textContent = ''; el.classList.add('words'); el.style.setProperty('--p', '0%');
+    line.palavras.forEach((w, k) => { const sp = document.createElement('span'); sp.className = 'w'; sp.textContent = w.w; el.append(sp, k < line.palavras.length - 1 ? ' ' : ''); });
+  }
+  const spans = el.querySelectorAll('.w');
+  line.palavras.forEach((w, k) => {
+    const q = t >= w.e ? 1 : t <= w.s ? 0 : (t - w.s) / Math.max(0.05, w.e - w.s);
+    spans[k].style.setProperty('--p', (q * 100).toFixed(1) + '%');
+  });
+}
+function plainCur() { const el = $('lyCur'); if (el._line) { el._line = null; el.classList.remove('words'); } }
 function renderLyrics(t) {
   const L = S.song?.letra || [];
   const box = $('lyrics');
   renderCue(t, L);
   if (!L.length) {
     box.classList.remove('free');
-    $('lyCur').textContent = ''; $('lyCur').style.setProperty('--p', '0%');
+    plainCur(); $('lyCur').textContent = ''; $('lyCur').style.setProperty('--p', '0%');
     $('lyNext').textContent = S.song?.file ? 'Base própria: cante no tempo da música' : '';
     return;
   }
   let i = L.findIndex((l) => t < l.fim);
-  if (i < 0) { $('lyCur').textContent = ''; $('lyNext').textContent = ''; return; }
+  if (i < 0) { plainCur(); $('lyCur').textContent = ''; $('lyNext').textContent = ''; return; }
   const cur = L[i];
   if (t < cur.inicio) {
     // ainda não começou esta linha: mostra ela como a próxima, sem cor
-    $('lyCur').textContent = i === 0 && t < cur.inicio - 0.5 ? (t < 0 ? 'Prepare-se…' : '♪') : cur.texto;
+    const intro = i === 0 && t < cur.inicio - 0.5;
+    if (cur.palavras && !intro) wordLine(cur, t); else { plainCur(); $('lyCur').textContent = intro ? (t < 0 ? 'Prepare-se…' : '♪') : cur.texto; }
     $('lyCur').style.setProperty('--p', '0%');
     $('lyNext').textContent = i === 0 && t < cur.inicio - 0.5 ? cur.texto : (L[i + 1]?.texto || '');
     return;
@@ -514,15 +528,13 @@ function renderLyrics(t) {
   // a cor vai preenchendo a linha enquanto ela é cantada (85% do tempo da linha)
   let p = Math.max(0, Math.min(1, (t - cur.inicio) / ((cur.fim - cur.inicio) * 0.85)));
   if (cur.palavras) {
-    // letra da IA: a cor anda palavra por palavra, no tempo em que o cantor original canta cada uma
-    let tot = 0, done = 0;
-    for (const w of cur.palavras) {
-      const n = w.w.length + 1; tot += n;
-      if (t >= w.e) done += n; else if (t > w.s) done += n * (t - w.s) / Math.max(0.05, w.e - w.s);
-    }
-    p = tot ? done / tot : p;
+    // letra da IA: cada palavra acende sozinha, no tempo em que o cantor original canta.
+    // Assim, se a frase quebrar em duas linhas na tela, o amarelo segue a linha certa.
+    wordLine(cur, t);
+    $('lyNext').textContent = L[i + 1]?.texto || '';
+    return;
   }
-  $('lyCur').textContent = cur.texto;
+  plainCur(); $('lyCur').textContent = cur.texto;
   $('lyCur').style.setProperty('--p', (p * 100).toFixed(1) + '%');
   $('lyNext').textContent = L[i + 1]?.texto || '';
 }
