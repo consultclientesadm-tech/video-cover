@@ -279,7 +279,17 @@ $('phones').onchange = async (e) => {
 };
 $('baseVol').oninput = applyVolumes;
 $('voiceVol').oninput = applyVolumes;
+// mostra a porcentagem e guarda a escolha no aparelho (na próxima gravação ele já sabe o que funcionou)
+const pct = (id) => Math.round(+$(id).value * 100) + '%';
+function showVolumes() {
+  $('baseVal').textContent = pct('baseVol'); $('voiceVal').textContent = pct('voiceVol');
+  $('volSum').textContent = `Base ${pct('baseVol')} · Voz ${pct('voiceVol')}`;
+}
+try { const v = JSON.parse(localStorage.getItem('vc-vol') || 'null'); if (v) { $('baseVol').value = v.base; $('voiceVol').value = v.voice; } } catch {}
+showVolumes();
 function applyVolumes() {
+  showVolumes();
+  try { localStorage.setItem('vc-vol', JSON.stringify({ base: +$('baseVol').value, voice: +$('voiceVol').value })); } catch {}
   if (!S.voiceGain) return;
   S.voiceGain.gain.value = +$('voiceVol').value;
   S.baseMixGain.gain.value = +$('baseVol').value;

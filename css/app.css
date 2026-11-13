@@ -210,3 +210,5 @@ button { cursor: pointer; }
 .lyrics, .prompter, .close, .count, .rec { z-index: 2; }
 #listen.pulse:not(:disabled) { border-color: var(--y); color: var(--y); animation: pulse 1.4s ease-out infinite; }
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 212, 0, .7); } 70% { box-shadow: 0 0 0 14px rgba(255, 212, 0, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 212, 0, 0); } }
+.vol .lbl b { color: var(--y); font-family: Orbitron, sans-serif; font-size: 12px; margin-left: 4px; letter-spacing: 0; }
+#volSum { color: var(--y); }
