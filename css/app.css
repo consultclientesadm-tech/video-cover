@@ -149,3 +149,19 @@ button { cursor: pointer; }
 .autobtn[aria-pressed=true] { background: var(--y); color: #000; border-color: var(--y); box-shadow: var(--glow); }
 .autobtn:disabled { opacity: .35; }
 .prow .tone { gap: 4px; } .prow .tone button { width: 30px; height: 30px; font-size: 18px; }
+
+/* Tela final no celular: vídeo grande ocupando a tela e botões fixos embaixo (sem tela dividida) */
+@media (max-width: 899px) {
+  .app[data-screen=result] .result { display: block; position: relative; overflow: hidden; }
+  .result .cam { position: absolute; inset: 0; }
+  .result .panel { position: absolute; left: 0; right: 0; bottom: 0; border-top: 0; gap: 8px;
+    background: linear-gradient(to top, rgba(0,0,0,.92) 60%, rgba(0,0,0,0)); padding-top: 28px; }
+  .result .actions.col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .result .actions.col #saveVoice { grid-column: 1 / -1; padding: 4px; border: 0; }
+  .result .upsell { grid-template-columns: 1fr auto; align-items: center; padding: 10px 12px; gap: 2px 10px; }
+  .result .upsell span { display: none; }
+  .result .upsell em { grid-row: 1; grid-column: 2; }
+  #final { object-fit: contain; }
+  .result .cam video { bottom: auto; height: calc(100% - var(--rp, 170px)); }
+}
+@media (max-width: 899px) { .result .actions.col .btn { white-space: nowrap; font-size: 14px; padding-left: 8px; padding-right: 8px; } }

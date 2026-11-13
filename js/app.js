@@ -364,13 +364,18 @@ function done() {
   const v = $('final');
   if (v.src) URL.revokeObjectURL(v.src);
   v.src = URL.createObjectURL(S.blob);
+  S.file = new File([S.blob], `video-cover-${S.song.id}.${S.ext}`, { type: S.blob.type }); // pronto antes do toque em Salvar
   show('result');
+  requestAnimationFrame(fitResult);
 }
 
 function stopAll() { stopPreview(); if (S.recording) { S.recording = false; try { S.src.stop(); } catch {} if (S.recorder?.state !== 'inactive') { S.recorder.onstop = null; S.recorder.stop(); } } cancelAnimationFrame(S.raf); $('count').hidden = true; $('recbadge').hidden = true; $('recBtn').classList.remove('on'); }
 
 function toStudio() { $('final').pause(); show('studio'); renderLyrics(0); resetPrompter(); $('progress').style.width = '0'; if (!S.cam) openCamera(); }
 $('again').onclick = toStudio;
+// tela final: o vídeo ocupa o que sobra acima dos botões, em qualquer celular (e ao girar)
+function fitResult() { document.documentElement.style.setProperty('--rp', document.querySelector('.result .panel').offsetHeight + 'px'); }
+addEventListener('resize', () => { if (app.dataset.screen === 'result') fitResult(); });
 
 // ---------- Letra (karaokê) ----------
 function loop() {
@@ -440,15 +445,22 @@ function renderCue(t, L) {
 
 // ---------- Salvar ----------
 $('save').onclick = async () => {
-  if (!S.blob) return;
+  if (!S.blob || saving) return;
+  const btn = $('save'), label = btn.textContent;
+  saving = true; btn.disabled = true; btn.textContent = 'Abrindo…';
+  $('final').pause(); // vídeo tocando + compartilhar ao mesmo tempo é o que trava o celular
+  try { await saveVideo(); } finally { saving = false; btn.disabled = false; btn.textContent = label; }
+};
+let saving = false;
+async function saveVideo() {
   const name = `video-cover-${S.song.id}.${S.ext}`;
-  const file = new File([S.blob], name, { type: S.blob.type });
+  const file = S.file || new File([S.blob], name, { type: S.blob.type });
   // no celular, "compartilhar" deixa salvar na galeria ou mandar direto para o Instagram
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try { await navigator.share({ files: [file], title: 'Meu cover' }); return; } catch (e) { if (e.name === 'AbortError') return; }
   }
   download(S.blob, name);
-};
+}
 $('saveVoice').onclick = () => {
   const wav = voiceWav();
   if (wav) download(wav, `video-cover-${S.song.id}-voz.wav`);
