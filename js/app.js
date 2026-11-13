@@ -4,6 +4,7 @@
 import { transpose } from './pitch.js';
 import { removeVoice, prefetchModel } from './separate.js';
 import { transcribe, SemChave } from './lyricsai.js';
+import { processVoice, baseGain, findVoiceInVideo, renderMix, exportVideo } from './mix.js';
 
 const $ = (id) => document.getElementById(id);
 const app = $('app');
@@ -316,20 +317,23 @@ $('phones').onchange = async (e) => {
 };
 $('baseVol').oninput = applyVolumes;
 $('voiceVol').oninput = applyVolumes;
+$('syncMs').oninput = () => { applyVolumes(); if (!$('final').paused) pvStart(); };
 // mostra a porcentagem e guarda a escolha no aparelho (na próxima gravação ele já sabe o que funcionou)
 const pct = (id) => Math.round(+$(id).value * 100) + '%';
 function showVolumes() {
   $('baseVal').textContent = pct('baseVol'); $('voiceVal').textContent = pct('voiceVol');
-  $('volSum').textContent = `Base ${pct('baseVol')} · Voz ${pct('voiceVol')}`;
+  const ms = +$('syncMs').value; $('syncVal').textContent = (ms > 0 ? '+' : '') + ms + ' ms';
 }
-try { const v = JSON.parse(localStorage.getItem('vc-vol') || 'null'); if (v) { $('baseVol').value = v.base; $('voiceVol').value = v.voice; } } catch {}
+try { const v = JSON.parse(localStorage.getItem('vc-vol') || 'null'); if (v) { $('baseVol').value = v.base; $('voiceVol').value = v.voice; if (v.sync != null) $('syncMs').value = v.sync; } } catch {}
 showVolumes();
 function applyVolumes() {
   showVolumes();
-  try { localStorage.setItem('vc-vol', JSON.stringify({ base: +$('baseVol').value, voice: +$('voiceVol').value })); } catch {}
+  try { localStorage.setItem('vc-vol', JSON.stringify({ base: +$('baseVol').value, voice: +$('voiceVol').value, sync: +$('syncMs').value })); } catch {}
+  S.outFile = null; // mudou o som: o vídeo salvo precisa ser refeito
+  if (S.pv) { S.pv.gv.gain.value = +$('voiceVol').value; S.pv.gb.gain.value = +$('baseVol').value * (S.mix?.bg || 1); }
   if (!S.voiceGain) return;
-  S.voiceGain.gain.value = +$('voiceVol').value;
-  S.baseMixGain.gain.value = +$('baseVol').value;
+  S.voiceGain.gain.value = 1;     // som de reserva gravado junto com a imagem
+  S.baseMixGain.gain.value = 0.8;
 }
 
 // ---------- Tom ----------
@@ -445,6 +449,7 @@ async function startRecording() {
   const src = ctx.createBufferSource();
   src.buffer = buf;
   const lat = roundTrip();
+  S.recBase = buf; S.lat = lat;
   S.delay.delayTime.value = lat;
   src.connect(ctx.destination);
   src.connect(S.delay);
@@ -473,7 +478,7 @@ async function startRecording() {
     const left = Math.ceil(S.baseStart - ctx.currentTime);
     if (left > 0) { $('count').textContent = left; requestAnimationFrame(tick); }
     else $('count').hidden = true;
-    if (S.recorder.state === 'inactive' && ctx.currentTime >= recAt) { S.recorder.start(1000); $('recbadge').hidden = false; }
+    if (S.recorder.state === 'inactive' && ctx.currentTime >= recAt) { S.recorder.start(1000); S.recT0 = ctx.currentTime; $('recbadge').hidden = false; }
   };
   tick();
   loop();
@@ -502,6 +507,7 @@ function finish() {
 }
 
 function done() {
+  S.recDur = S.ctx.currentTime - S.recT0;
   S.blob = new Blob(S.chunks, { type: S.mime || 'video/mp4' });
   const v = $('final');
   if (v.src) URL.revokeObjectURL(v.src);
@@ -509,11 +515,78 @@ function done() {
   S.file = new File([S.blob], `video-cover-${S.song.id}.${S.ext}`, { type: S.blob.type }); // pronto antes do toque em Salvar
   show('result');
   requestAnimationFrame(fitResult);
+  prepareMix();
+}
+
+// ---------- Prévia: voz tratada + música, com volumes ajustáveis ----------
+function voicePcm() {
+  if (!S.voice.length) return null;
+  const end = S.voice[S.voice.length - 1].f + 128;
+  const len = Math.max(0, end - S.voiceStartFrame);
+  const pcm = new Float32Array(len);
+  for (const c of S.voice) for (let k = 0; k < c.d.length; k++) { const i = c.f + k - S.voiceStartFrame; if (i >= 0 && i < len) pcm[i] = c.d[k]; }
+  return pcm;
+}
+async function prepareMix() {
+  S.mix = null; S.outFile = null; pvStop();
+  const v = $('final'), wait = $('mixWait');
+  $('mixer').classList.add('busy'); wait.hidden = false; wait.textContent = 'Deixando o som pronto…';
+  $('save').disabled = true;
+  try {
+    const pcm = voicePcm(); if (!pcm) throw new Error('sem voz');
+    const sr = S.ctx.sampleRate;
+    const guess = S.baseStart + S.lat - S.recT0; // segundo do vídeo em que a voz (tempo 0 da música) entra
+    const [voice, at] = await Promise.all([processVoice(pcm, sr), findVoiceInVideo(S.ctx, S.blob, pcm, sr, guess)]);
+    console.info('voz no vídeo', at, 'estimado', guess.toFixed(3));
+    const dur = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : S.recDur;
+    S.mix = { voice, base: S.recBase, bg: baseGain(S.recBase), voiceAt: at ?? guess, duration: dur, sr };
+    v.muted = true; // a prévia toca o som novo, sincronizado com a imagem
+    ensurePv(); applyVolumes(); if (!v.paused) pvStart();
+    wait.hidden = true; $('mixer').classList.remove('busy');
+  } catch (e) {
+    console.warn('prévia', e);
+    wait.textContent = 'Não consegui tratar o som: o vídeo sai com o som da gravação.';
+    v.muted = false;
+  }
+  $('save').disabled = false;
+}
+function ensurePv() {
+  if (S.pv) return;
+  const c = S.ctx, gv = c.createGain(), gb = c.createGain(), lim = c.createDynamicsCompressor();
+  lim.threshold.value = -2; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.002; lim.release.value = 0.1;
+  gv.connect(lim); gb.connect(lim); lim.connect(c.destination);
+  S.pv = { gv, gb, srcs: [] };
+}
+const baseAt = () => S.mix.voiceAt + (+$('syncMs').value) / 1000;
+function pvStart() {
+  pvStop();
+  if (!S.mix || !S.pv) return;
+  ensureAudio();
+  const t = $('final').currentTime, now = S.ctx.currentTime + 0.04;
+  const play = (buf, at, out) => {
+    const off = t - at; if (off >= buf.duration) return;
+    const s = S.ctx.createBufferSource(); s.buffer = buf; s.connect(out);
+    if (off >= 0) s.start(now, off); else s.start(now - off);
+    S.pv.srcs.push(s);
+  };
+  play(S.mix.voice, S.mix.voiceAt, S.pv.gv);
+  play(S.mix.base, baseAt(), S.pv.gb);
+}
+function pvStop() { if (!S.pv) return; for (const s of S.pv.srcs) { try { s.stop(); } catch {} } S.pv.srcs = []; }
+{
+  const v = $('final');
+  v.addEventListener('play', pvStart);
+  v.addEventListener('playing', () => { if (S.mix && !S.pv?.srcs.length) pvStart(); });
+  v.addEventListener('pause', pvStop);
+  v.addEventListener('seeking', pvStop);
+  v.addEventListener('seeked', () => { if (!v.paused) pvStart(); });
+  v.addEventListener('ended', pvStop);
+  v.addEventListener('volumechange', () => { if (S.mix && !v.muted) v.muted = true; }); // o som da prévia vem do tratamento
 }
 
 function stopAll() { app.classList.remove('gravando'); prepAbort?.abort(); $('prep').hidden = true; cancelAnimationFrame(S.drawRaf); stopPreview(); if (S.recording) { S.recording = false; try { S.src.stop(); } catch {} if (S.recorder?.state !== 'inactive') { S.recorder.onstop = null; S.recorder.stop(); } } cancelAnimationFrame(S.raf); $('count').hidden = true; $('recbadge').hidden = true; $('recBtn').classList.remove('on'); }
 
-function toStudio() { $('final').pause(); show('studio'); renderLyrics(0); resetPrompter(); $('progress').style.width = '0'; if (!S.cam) openCamera(); }
+function toStudio() { $('final').pause(); pvStop(); show('studio'); renderLyrics(0); resetPrompter(); $('progress').style.width = '0'; if (!S.cam) openCamera(); }
 $('again').onclick = toStudio;
 // tela final: o vídeo ocupa o que sobra acima dos botões, em qualquer celular (e ao girar)
 function fitResult() { document.documentElement.style.setProperty('--rp', document.querySelector('.result .panel').offsetHeight + 'px'); }
@@ -600,20 +673,43 @@ function renderCue(t, L) {
 // ---------- Salvar ----------
 $('save').onclick = async () => {
   if (!S.blob || saving) return;
-  const btn = $('save'), label = btn.textContent;
+  const btn = $('save'), label = 'Salvar vídeo';
   saving = true; btn.disabled = true; btn.textContent = 'Abrindo…';
   $('final').pause(); // vídeo tocando + compartilhar ao mesmo tempo é o que trava o celular
-  try { await saveVideo(); } finally { saving = false; btn.disabled = false; btn.textContent = label; }
+  S.saveLabel = null;
+  try { await saveVideo(); } finally { saving = false; btn.disabled = false; btn.textContent = S.saveLabel || label; }
 };
 let saving = false;
+async function finalFile(btn) {
+  if (S.outFile) return S.outFile;
+  if (!S.mix) return S.file;
+  try {
+    btn.textContent = 'Preparando o vídeo…';
+    const audio = await renderMix({ voice: S.mix.voice, base: S.mix.base, voiceAt: S.mix.voiceAt, baseAt: baseAt(),
+      gv: +$('voiceVol').value, gb: +$('baseVol').value * S.mix.bg, duration: S.mix.duration, sr: S.mix.sr });
+    const blob = await exportVideo(S.blob, audio, (p) => { btn.textContent = `Preparando o vídeo… ${Math.round(p * 100)}%`; });
+    const ext = blob.type.includes('webm') ? 'webm' : 'mp4';
+    S.outFile = new File([blob], `video-cover-${S.song.id}.${ext}`, { type: blob.type });
+    return S.outFile;
+  } catch (e) {
+    console.error('exportar', e);
+    $('mixWait').hidden = false; $('mixWait').textContent = 'Não consegui juntar o som novo: salvando com o som da gravação.';
+    return S.file;
+  }
+}
 async function saveVideo() {
-  const name = `video-cover-${S.song.id}.${S.ext}`;
-  const file = S.file || new File([S.blob], name, { type: S.blob.type });
+  const btn = $('save'), ready = !!S.outFile || !S.mix;
+  const file = await finalFile(btn);
+  const name = file.name;
   // no celular, "compartilhar" deixa salvar na galeria ou mandar direto para o Instagram
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: 'Meu cover' }); return; } catch (e) { if (e.name === 'AbortError') return; }
+    try { await navigator.share({ files: [file], title: 'Meu cover' }); return; } catch (e) {
+      if (e.name === 'AbortError') return;
+      // o celular só deixa abrir "Salvar/Compartilhar" logo depois do toque: se demorou, pede mais um toque
+      if (e.name === 'NotAllowedError' && !ready) { S.saveLabel = 'Vídeo pronto · toque para salvar'; return; }
+    }
   }
-  download(S.blob, name);
+  download(file, name);
 }
 $('saveVoice').onclick = () => {
   const wav = voiceWav();

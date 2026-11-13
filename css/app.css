@@ -246,3 +246,13 @@ button { cursor: pointer; }
 .lyrics { background: linear-gradient(rgba(0, 0, 0, .38), rgba(0, 0, 0, .12) 70%, transparent); }
 .lyrics .cur, .lyrics .nxt { filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .95)) drop-shadow(0 0 6px rgba(0, 0, 0, .6)); }
 .prompter { background: linear-gradient(rgba(0, 0, 0, .38), rgba(0, 0, 0, .1)); }
+
+/* Prévia: volumes da voz e da música */
+.mixer { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; position: relative; }
+.mixer .more { grid-column: 1 / -1; }
+.mixer .more input { width: 100%; accent-color: var(--y); margin-top: 6px; }
+.mixer .syncl { display: flex; justify-content: space-between; color: var(--mut); font-size: 11px; }
+.mixer.busy .vol, .mixer.busy .more { opacity: .35; pointer-events: none; }
+.mixwait { grid-column: 1 / -1; font-size: 12px; color: var(--y); text-align: center; }
+.mixwait[hidden] { display: none; }
+#syncVal { color: var(--y); }

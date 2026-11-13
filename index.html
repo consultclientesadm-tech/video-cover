@@ -131,13 +131,6 @@
           <label class="switch"><input type="checkbox" id="phones"><span></span>Estou de fone</label>
         </div>
         <div class="tip" id="tip">Com fone o resultado fica melhor.</div>
-        <details class="more">
-          <summary>Volumes do vídeo · <span id="volSum">Base 80% · Voz 100%</span></summary>
-          <div class="row">
-            <label class="vol"><span class="lbl">Base no vídeo <b id="baseVal">80%</b></span><input type="range" id="baseVol" min="0" max="1.5" step="0.05" value="0.8"></label>
-            <label class="vol"><span class="lbl">Voz no vídeo <b id="voiceVal">100%</b></span><input type="range" id="voiceVol" min="0" max="2" step="0.05" value="1"></label>
-          </div>
-        </details>
       </div>
       <div class="actions">
         <button class="btn ghost" id="listen">Ouvir</button>
@@ -165,6 +158,16 @@
   <section class="screen result">
     <div class="cam"><video id="final" playsinline controls></video></div>
     <div class="panel">
+      <div class="mixer" id="mixer">
+        <div class="mixwait" id="mixWait">Deixando o som pronto…</div>
+        <label class="vol"><span class="lbl">Sua voz <b id="voiceVal">100%</b></span><input type="range" id="voiceVol" min="0" max="1.6" step="0.05" value="1"></label>
+        <label class="vol"><span class="lbl">Música <b id="baseVal">80%</b></span><input type="range" id="baseVol" min="0" max="1.6" step="0.05" value="0.8"></label>
+        <details class="more">
+          <summary>Sincronia da voz · <span id="syncVal">0 ms</span></summary>
+          <input type="range" id="syncMs" min="-300" max="300" step="10" value="0">
+          <div class="syncl"><small>voz adiantada</small><small>voz atrasada</small></div>
+        </details>
+      </div>
       <div class="actions col">
         <button class="btn" id="save">Salvar vídeo</button>
         <button class="btn ghost" id="again">Gravar de novo</button>
