@@ -154,7 +154,7 @@ const workersFor = (secs) => {
 };
 
 // Um ajudante separa um trecho e devolve a voz desse trecho
-function runWorker(L, R, onProgress) {
+function runWorker(L, R, onProgress, signal) {
   return new Promise((resolve, reject) => {
     const w = new Worker(new URL('./sep-worker.js', import.meta.url), { type: 'module' });
     let last = Date.now();
@@ -168,12 +168,13 @@ function runWorker(L, R, onProgress) {
       else if (m.t === 'err') fail(new Error(m.m));
       else if (m.t === 'done') { end(); resolve(m.voice.map((v) => new Float32Array(v.b, v.o, v.n))); }
     };
+    signal?.addEventListener('abort', () => fail(new DOMException('cancelado', 'AbortError')));
     w.onerror = (e) => { e.preventDefault?.(); fail(new Error(e.message || 'a IA não abriu')); };
   });
 }
 
 // No app: divide a música em trechos, separa todos ao mesmo tempo e devolve a BASE (música sem a voz)
-export async function removeVoice(ctx, buffer, { onDownload = () => {}, onProgress = () => {} } = {}) {
+export async function removeVoice(ctx, buffer, { onDownload = () => {}, onProgress = () => {}, signal } = {}) {
   await prefetchModel(onDownload);
   const sr = buffer.sampleRate, len = buffer.length;
   const src = [buffer.getChannelData(0), buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : buffer.getChannelData(0)];
@@ -184,7 +185,7 @@ export async function removeVoice(ctx, buffer, { onDownload = () => {}, onProgre
   const jobs = [];
   for (let k = 0; k < K; k++) {
     const a = Math.max(0, k * seg - PAD), b = Math.min(len, (k + 1) * seg + PAD);
-    jobs.push(runWorker(src[0].slice(a, b), src[1].slice(a, b), (p) => { prog[k] = p; onProgress(prog.reduce((x, y) => x + y, 0) / K); })
+    jobs.push(runWorker(src[0].slice(a, b), src[1].slice(a, b), (p) => { prog[k] = p; onProgress(prog.reduce((x, y) => x + y, 0) / K); }, signal)
       .then((voice) => ({ a, b, voice })));
   }
   const parts = await Promise.all(jobs);

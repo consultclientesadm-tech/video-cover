@@ -18,6 +18,7 @@ const S = {
   baseStart: 0, raf: 0, blob: null, ext: 'mp4', mime: '',
   // teleprompter: texto colado, velocidade (1–20), atraso do início (s), posição atual (px), pausado
   pr: { text: '', speed: 5, delay: 0, pos: 0, paused: false, last: 0, auto: false, off: 0 },
+  fmt: 'v', canvas: null, // formato do vídeo: 'v' vertical (9:16) ou 'h' horizontal (16:9)
   sing: null, // trechos em que o cantor original canta: { seg: [[ini, fim], ...] (s), total }
 };
 
@@ -78,12 +79,122 @@ async function openSong(song) {
     busy('Não consegui abrir esse áudio. Tente um MP3.'); return;
   }
   busy('');
-  const rv = $('removeVoice');
-  rv.hidden = !song.file; rv.disabled = false; rv.textContent = 'Separar voz (IA)';
-  if (song.file) prefetchModel().catch(() => {}); // já deixa a IA baixada enquanto ele se prepara
-  await openCamera();
+  $('removeVoice').hidden = true;
+  setStep(1); lyricsHint();
+  const cam = openCamera(); // pede a câmera já (a permissão aparece enquanto a IA trabalha)
+  if (song.file) await prepare(); // tira a voz e lê a letra sozinho, logo depois de subir a música
+  await cam;
   $('listen').disabled = false;
   $('recBtn').disabled = !S.cam;
+}
+
+// ---------- Preparação automática (logo depois de subir a música) ----------
+let prepAbort = null;
+function prepUI(step, pct, msg) {
+  $('prep').hidden = false;
+  $('ps1').className = step === 1 ? 'cur' : 'ok';
+  $('ps2').className = step === 2 ? 'cur' : step > 2 ? 'ok' : '';
+  $('prepPct').textContent = Math.round(pct * 100) + '%';
+  $('prep').querySelector('.ring').style.setProperty('--pp', (pct * 100).toFixed(1) + '%');
+  if (msg) $('prepMsg').textContent = msg;
+}
+async function prepare() {
+  const song = S.song;
+  $('prepRetry').hidden = true; $('prepSkip').hidden = false;
+  prepUI(1, 0, 'Leva uns segundos. Na primeira vez a IA também é baixada.');
+  prepAbort = new AbortController();
+  try {
+    const bed = await removeVoice(S.ctx, S.original, {
+      signal: prepAbort.signal,
+      onDownload: (p) => { if (p < 1) prepUI(1, p * 0.3, `Baixando a IA (só na primeira vez)… ${Math.round(p * 100)}%`); },
+      onProgress: (p) => prepUI(1, 0.3 + p * 0.55, 'Tirando a voz do cantor original…'),
+    });
+    if (S.song !== song) return;
+    S.original = bed; S.buffers.clear(); S.buffers.set('0|1', bed);
+    findSinging(bed.voice, bed.sampleRate);
+    if (S.sing) { prepUI(2, 0.88, 'Lendo a letra…'); await autoLyrics(bed.voice, bed.sampleRate, (p) => prepUI(2, 0.88 + p * 0.12)); }
+    prepUI(3, 1);
+    await new Promise((r) => setTimeout(r, 450));
+    $('prep').hidden = true;
+  } catch (e) {
+    if (e.name === 'AbortError' || S.song !== song) return;
+    console.error(e);
+    $('prepMsg').textContent = 'Não consegui tirar a voz desta vez.';
+    $('prepRetry').hidden = false;
+  } finally { prepAbort = null; lyricsHint(); }
+}
+$('prepRetry').onclick = () => prepare();
+$('prepSkip').onclick = () => { prepAbort?.abort(); $('prep').hidden = true; lyricsHint(); };
+
+// ---------- Passo a passo: 1 Tom · 2 Letra · 3 Gravar ----------
+function setStep(n) {
+  $('panel').dataset.step = n;
+  [...$('steps').children].forEach((b) => { const k = +b.dataset.go; b.classList.toggle('cur', k === n); b.classList.toggle('done', k < n); });
+  $('frame').hidden = n !== 3; placeFrame();
+}
+$('steps').onclick = (e) => { const b = e.target.closest('button'); if (b && !S.recording) setStep(+b.dataset.go); };
+$('nextBtn').onclick = () => setStep(Math.min(3, +$('panel').dataset.step + 1));
+function lyricsHint() {
+  const h = $('lyHint');
+  if (S.song?.letra?.length) h.innerHTML = '<span class="ok">A IA leu a letra ✓</span> Ela aparece em cima e acende no tempo do cantor. Errou alguma palavra? Corrija aqui.';
+  else if (S.pr.text.trim()) h.innerHTML = 'A letra sobe sozinha no teleprompter. Ajuste a velocidade ou deixe no <b>AUTO</b>.';
+  else h.innerHTML = 'Cole a letra para ela subir na tela enquanto você canta.';
+}
+
+// ---------- Formato: vertical ou horizontal ----------
+$('fmt').onclick = (e) => {
+  const b = e.target.closest('button'); if (!b || S.recording) return;
+  S.fmt = b.dataset.fmt;
+  [...$('fmt').children].forEach((x) => x.setAttribute('aria-pressed', x === b));
+  placeFrame();
+};
+// área da câmera que vai para o vídeo (recorte do meio no formato escolhido)
+function cropRect(vw, vh) {
+  const ar = S.fmt === 'h' ? 16 / 9 : 9 / 16;
+  return vw / vh > ar ? { w: vh * ar, h: vh } : { w: vw, h: vw / ar };
+}
+// moldura sobre a câmera mostrando o que vai sair no vídeo
+function placeFrame() {
+  const v = $('preview'), f = $('frame'), box = v.parentElement;
+  const vw = v.videoWidth, vh = v.videoHeight;
+  if (!vw || f.hidden) return;
+  const W = box.clientWidth, H = box.clientHeight, k = Math.max(W / vw, H / vh);
+  const c = cropRect(vw, vh), w = Math.min(W, c.w * k), h = Math.min(H, c.h * k);
+  const full = w >= W - 1 && h >= H - 1;
+  f.style.cssText = `left:${(W - w) / 2}px;top:${(H - h) / 2}px;width:${w}px;height:${h}px;${full ? 'outline:0;box-shadow:none' : ''}`;
+  const portrait = vh > vw;
+  $('tip').textContent = S.fmt === 'h' && portrait ? 'Dica: gire o celular para o vídeo horizontal pegar a imagem inteira.'
+    : S.fmt === 'v' && !portrait ? 'Dica: segure o celular em pé para o vídeo vertical.'
+    : (S.phones ? 'Voz limpa, volume à vontade.' : 'Com fone o resultado fica melhor.');
+}
+addEventListener('resize', () => setTimeout(placeFrame, 300));
+$('preview').addEventListener('resize', placeFrame);
+$('preview').addEventListener('loadedmetadata', placeFrame);
+
+// O vídeo sai de um quadro desenhado a partir da câmera, sempre no formato escolhido
+function canvasTrack() {
+  const v = $('preview');
+  const cv = S.canvas || (S.canvas = document.createElement('canvas'));
+  const g = cv.getContext('2d', { alpha: false });
+  const size = () => {
+    const c = cropRect(v.videoWidth, v.videoHeight);
+    const sc = Math.min(1, 1920 / Math.max(c.w, c.h)); // no máximo Full HD
+    const w = Math.round(c.w * sc / 2) * 2, h = Math.round(c.h * sc / 2) * 2;
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    return c;
+  };
+  size();
+  const draw = () => {
+    if (!S.recording) return;
+    const vw = v.videoWidth, vh = v.videoHeight;
+    if (vw) {
+      const c = size();
+      g.drawImage(v, (vw - c.w) / 2, (vh - c.h) / 2, c.w, c.h, 0, 0, cv.width, cv.height);
+    }
+    S.drawRaf = requestAnimationFrame(draw);
+  };
+  S.recording = true; draw();
+  return cv.captureStream(30).getVideoTracks()[0];
 }
 
 function ensureAudio() {
@@ -160,6 +271,7 @@ function closeCamera() {
 $('phones').onchange = async (e) => {
   S.phones = e.target.checked;
   $('tip').textContent = S.phones ? 'Voz limpa, volume à vontade.' : 'Com fone o resultado fica melhor.';
+  placeFrame();
   if (S.cam) await openMic();
 };
 $('baseVol').oninput = applyVolumes;
@@ -227,28 +339,7 @@ async function bufferForTone() {
 function busy(t) { $('busy').hidden = !t; $('busy').textContent = t; }
 
 // ---------- Tirar a voz do cantor (música do celular) ----------
-$('removeVoice').onclick = async () => {
-  const rv = $('removeVoice');
-  if (S.previewing) stopPreview();
-  rv.disabled = true; $('recBtn').disabled = true; $('listen').disabled = true;
-  rv.textContent = 'Preparando a IA…';
-  try {
-    const bed = await removeVoice(S.ctx, S.original, {
-      onDownload: (p) => { if (p < 1) rv.textContent = `Baixando a IA (só na 1ª vez)… ${Math.round(p * 100)}%`; },
-      onProgress: (p) => { rv.textContent = `Tirando a voz… ${Math.round(p * 100)}%`; },
-    });
-    S.original = bed; S.buffers.clear(); S.buffers.set('0|1', bed);
-    rv.textContent = 'Voz separada ✓';
-    findSinging(bed.voice, bed.sampleRate);
-    if (S.sing) await autoLyrics(bed.voice, bed.sampleRate, rv);
-    if (S.semis || S.speed !== 1) await bufferForTone();
-  } catch (e) {
-    console.error(e);
-    rv.disabled = false; rv.textContent = 'Não deu certo. Tocar para tentar de novo';
-  }
-  $('recBtn').disabled = !S.cam; $('listen').disabled = false;
-};
-
+$('removeVoice').onclick = () => prepare();
 // ---------- Ouvir a base (sem gravar) ----------
 $('listen').onclick = async () => {
   if (S.previewing) return stopPreview();
@@ -268,7 +359,7 @@ function stopPreview() {
   if (!S.previewing) return;
   try { S.previewing.stop(); } catch {}
   S.previewing = null;
-  $('listen').textContent = 'Ouvir a base';
+  $('listen').textContent = 'Ouvir';
   cancelAnimationFrame(S.raf); renderLyrics(0); $('progress').style.width = '0';
   resetPrompter();
 }
@@ -297,7 +388,7 @@ async function startRecording() {
   const buf = await bufferForTone();
   const ctx = S.ctx;
   S.recording = true; setTone(); setSpeed();
-  $('recBtn').classList.add('on'); $('listen').disabled = true; $('phones').disabled = true;
+  $('recBtn').classList.add('on'); $('panel').classList.add('rec'); $('listen').disabled = true; $('phones').disabled = true;
 
   // base: uma fonte para o alto-falante (para cantar junto) e a mesma, atrasada, para o vídeo
   const src = ctx.createBufferSource();
@@ -310,7 +401,7 @@ async function startRecording() {
 
   S.mime = pickMime();
   S.ext = S.mime.includes('mp4') ? 'mp4' : 'webm';
-  const stream = new MediaStream([S.cam.getVideoTracks()[0], S.dest.stream.getAudioTracks()[0]]);
+  const stream = new MediaStream([canvasTrack(), S.dest.stream.getAudioTracks()[0]]);
   S.chunks = []; S.voice = [];
   S.recorder = new MediaRecorder(stream, { mimeType: S.mime || undefined, videoBitsPerSecond: 8_000_000, audioBitsPerSecond: 192_000 });
   S.recorder.ondataavailable = (e) => e.data.size && S.chunks.push(e.data);
@@ -351,8 +442,8 @@ function finish() {
   if (!S.recording) return;
   S.recording = false;
   try { S.src.onended = null; S.src.stop(); } catch {}
-  cancelAnimationFrame(S.raf);
-  $('count').hidden = true; $('recbadge').hidden = true;
+  cancelAnimationFrame(S.raf); cancelAnimationFrame(S.drawRaf);
+  $('count').hidden = true; $('recbadge').hidden = true; $('panel').classList.remove('rec');
   $('recBtn').classList.remove('on'); $('listen').disabled = false; $('phones').disabled = false;
   setTone(); setSpeed();
   if (S.recorder && S.recorder.state !== 'inactive') S.recorder.stop();
@@ -369,7 +460,7 @@ function done() {
   requestAnimationFrame(fitResult);
 }
 
-function stopAll() { stopPreview(); if (S.recording) { S.recording = false; try { S.src.stop(); } catch {} if (S.recorder?.state !== 'inactive') { S.recorder.onstop = null; S.recorder.stop(); } } cancelAnimationFrame(S.raf); $('count').hidden = true; $('recbadge').hidden = true; $('recBtn').classList.remove('on'); }
+function stopAll() { prepAbort?.abort(); $('prep').hidden = true; cancelAnimationFrame(S.drawRaf); stopPreview(); if (S.recording) { S.recording = false; try { S.src.stop(); } catch {} if (S.recorder?.state !== 'inactive') { S.recorder.onstop = null; S.recorder.stop(); } } cancelAnimationFrame(S.raf); $('count').hidden = true; $('recbadge').hidden = true; $('recBtn').classList.remove('on'); }
 
 function toStudio() { $('final').pause(); show('studio'); renderLyrics(0); resetPrompter(); $('progress').style.width = '0'; if (!S.cam) openCamera(); }
 $('again').onclick = toStudio;
@@ -492,16 +583,12 @@ function voiceWav() {
 }
 
 // ---------- Letra automática (IA ouve a voz separada) ----------
-async function autoLyrics(voice, sr, rv) {
-  rv.textContent = 'Lendo a letra…';
+async function autoLyrics(voice, sr, onProgress = () => {}) {
   try {
-    const lines = await transcribe(voice, sr, S.sing.seg, { onProgress: (p) => { rv.textContent = `Lendo a letra… ${Math.round(p * 100)}%`; } });
-    if (!lines.length) { rv.textContent = 'Voz separada ✓ (não consegui ler a letra)'; return; }
-    setKaraoke(lines);
-    rv.textContent = 'Voz separada ✓ Letra pronta ✓';
+    const lines = await transcribe(voice, sr, S.sing.seg, { onProgress });
+    if (lines.length) setKaraoke(lines);
   } catch (e) {
-    console.warn(e);
-    rv.textContent = e instanceof SemChave ? 'Voz separada ✓' : 'Voz separada ✓ (letra automática falhou: cole a letra)';
+    console.warn(e instanceof SemChave ? 'transcrição desligada' : e);
   }
 }
 // Modo karaokê: a letra com tempo vira as linhas do topo (com as setas e o preenchimento por palavra)
@@ -510,7 +597,7 @@ function setKaraoke(lines) {
   const on = !!lines?.length;
   $('lyrics').hidden = !on; $('prompter').hidden = on; $('prow').hidden = on;
   $('pasteBtn').textContent = on ? 'Corrigir letra' : (S.pr.text.trim() ? 'Editar letra' : 'Colar letra');
-  renderLyrics(0);
+  renderLyrics(0); lyricsHint();
 }
 
 // ---------- Teleprompter ----------

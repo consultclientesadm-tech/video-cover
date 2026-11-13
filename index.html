@@ -31,10 +31,10 @@
       <small>MP3, M4A ou WAV do seu celular</small>
     </label>
     <ol class="how">
-      <li><b>1</b>Suba a música (com ou sem voz)</li>
-      <li><b>2</b>Toque em <em>Separar voz</em></li>
-      <li><b>3</b>Cole a letra e ajuste a velocidade</li>
-      <li><b>4</b>Grave: a música começa sozinha</li>
+      <li><b>1</b>Suba a música: a IA tira a voz e lê a letra sozinha</li>
+      <li><b>2</b><em>Ajuste seu tom</em> ouvindo a base</li>
+      <li><b>3</b>Confira a letra</li>
+      <li><b>4</b>Escolha <em>vertical</em> ou <em>horizontal</em> e grave</li>
     </ol>
     <ul class="songs" id="songs" hidden></ul>
   </section>
@@ -58,56 +58,90 @@
         <div class="cur" id="lyCur"></div>
         <div class="nxt" id="lyNext"></div>
       </div>
+      <div class="frame" id="frame" hidden></div>
       <div class="bar"><div id="progress"></div></div>
     </div>
-    <div class="panel">
-      <div class="row">
-        <div class="tone">
-          <span class="lbl">Tom</span>
-          <button id="toneDown" aria-label="Descer o tom">−</button>
-          <div class="toneval"><b id="toneKey">C</b><small id="toneSemi">original</small></div>
-          <button id="toneUp" aria-label="Subir o tom">+</button>
-        </div>
-        <div class="tone">
-          <span class="lbl">Andamento</span>
-          <button id="speedDown" aria-label="Mais lento">−</button>
-          <div class="toneval"><b id="speedBpm">100%</b><small id="speedPct">original</small></div>
-          <button id="speedUp" aria-label="Mais rápido">+</button>
-        </div>
-      </div>
-      <div class="row prow" id="prow" hidden>
-        <button class="autobtn" id="autoBtn" aria-pressed="false" title="A letra segue o cantor original">AUTO</button>
-        <div class="tone">
-          <span class="lbl">Rolagem</span>
-          <button id="pSlow" aria-label="Letra mais devagar">−</button>
-          <div class="toneval"><b id="pSpeed">5</b><small>velocidade</small></div>
-          <button id="pFast" aria-label="Letra mais rápida">+</button>
-        </div>
-        <div class="tone">
-          <span class="lbl">Começa</span>
-          <button id="dLess" aria-label="Letra começa antes">−</button>
-          <div class="toneval"><b id="pDelay">0s</b><small>depois</small></div>
-          <button id="dMore" aria-label="Letra começa depois">+</button>
+    <!-- Preparação automática: assim que a música sobe, a IA tira a voz e lê a letra -->
+    <div class="prep" id="prep" hidden>
+      <div class="prepbox">
+        <div class="ring"><b id="prepPct">0%</b></div>
+        <ol class="prepsteps">
+          <li id="ps1">Separando a voz da melodia</li>
+          <li id="ps2">Lendo a letra da música</li>
+        </ol>
+        <small id="prepMsg">Leva uns segundos. Na primeira vez a IA também é baixada.</small>
+        <div class="prepbtns">
+          <button class="btn" id="prepRetry" hidden>Tentar de novo</button>
+          <button class="btn ghost small" id="prepSkip">Minha música já é sem voz · pular</button>
         </div>
       </div>
-      <details class="more">
-        <summary>Volumes do vídeo</summary>
+    </div>
+    <div class="panel" id="panel" data-step="1">
+      <nav class="steps" id="steps">
+        <button data-go="1"><b>1</b>Tom</button>
+        <button data-go="2"><b>2</b>Letra</button>
+        <button data-go="3"><b>3</b>Gravar</button>
+      </nav>
+      <div class="step" data-step="1">
+        <p class="hint">Toque em <b>Ouvir</b> e suba ou desça o tom até ficar confortável para a sua voz.</p>
         <div class="row">
-          <label class="vol"><span class="lbl">Base no vídeo</span><input type="range" id="baseVol" min="0" max="1.5" step="0.01" value="0.8"></label>
-          <label class="vol"><span class="lbl">Voz no vídeo</span><input type="range" id="voiceVol" min="0" max="2" step="0.01" value="1"></label>
+          <div class="tone">
+            <span class="lbl">Tom</span>
+            <button id="toneDown" aria-label="Descer o tom">−</button>
+            <div class="toneval"><b id="toneKey">C</b><small id="toneSemi">original</small></div>
+            <button id="toneUp" aria-label="Subir o tom">+</button>
+          </div>
+          <div class="tone">
+            <span class="lbl">Andamento</span>
+            <button id="speedDown" aria-label="Mais lento">−</button>
+            <div class="toneval"><b id="speedBpm">100%</b><small id="speedPct">original</small></div>
+            <button id="speedUp" aria-label="Mais rápido">+</button>
+          </div>
         </div>
-      </details>
-      <div class="row">
-        <label class="switch"><input type="checkbox" id="phones"><span></span>Estou de fone</label>
-        <div class="tip" id="tip">Com fone o resultado fica melhor.</div>
       </div>
-      <div class="row twin">
-        <button class="btn ghost small paste" id="pasteBtn" hidden>Colar letra</button>
-        <button class="btn ghost small" id="removeVoice" hidden>Separar voz (IA)</button>
+      <div class="step" data-step="2">
+        <p class="hint" id="lyHint">Cole a letra para ela subir na tela enquanto você canta.</p>
+        <div class="row prow" id="prow" hidden>
+          <button class="autobtn" id="autoBtn" aria-pressed="false" title="A letra segue o cantor original">AUTO</button>
+          <div class="tone">
+            <span class="lbl">Rolagem</span>
+            <button id="pSlow" aria-label="Letra mais devagar">−</button>
+            <div class="toneval"><b id="pSpeed">5</b><small>velocidade</small></div>
+            <button id="pFast" aria-label="Letra mais rápida">+</button>
+          </div>
+          <div class="tone">
+            <span class="lbl">Começa</span>
+            <button id="dLess" aria-label="Letra começa antes">−</button>
+            <div class="toneval"><b id="pDelay">0s</b><small>depois</small></div>
+            <button id="dMore" aria-label="Letra começa depois">+</button>
+          </div>
+        </div>
+        <div class="row twin">
+          <button class="btn ghost small paste" id="pasteBtn">Colar letra</button>
+          <button class="btn ghost small" id="removeVoice" hidden>Separar voz (IA)</button>
+        </div>
+      </div>
+      <div class="step" data-step="3">
+        <div class="row">
+          <div class="seg" id="fmt" role="radiogroup" aria-label="Formato do vídeo">
+            <button data-fmt="v" aria-pressed="true"><i class="ico v"></i>Vertical</button>
+            <button data-fmt="h" aria-pressed="false"><i class="ico h"></i>Horizontal</button>
+          </div>
+          <label class="switch"><input type="checkbox" id="phones"><span></span>Estou de fone</label>
+        </div>
+        <div class="tip" id="tip">Com fone o resultado fica melhor.</div>
+        <details class="more">
+          <summary>Volumes do vídeo</summary>
+          <div class="row">
+            <label class="vol"><span class="lbl">Base no vídeo</span><input type="range" id="baseVol" min="0" max="1.5" step="0.01" value="0.8"></label>
+            <label class="vol"><span class="lbl">Voz no vídeo</span><input type="range" id="voiceVol" min="0" max="2" step="0.01" value="1"></label>
+          </div>
+        </details>
       </div>
       <div class="actions">
-        <button class="btn ghost" id="listen">Ouvir a base</button>
+        <button class="btn ghost" id="listen">Ouvir</button>
         <button class="recbtn" id="recBtn" aria-label="Gravar"><span></span></button>
+        <button class="btn next" id="nextBtn">Próximo ›</button>
         <div class="busy" id="busy" hidden></div>
       </div>
     </div>
