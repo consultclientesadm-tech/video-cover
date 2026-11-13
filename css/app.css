@@ -145,3 +145,7 @@ button { cursor: pointer; }
 .row.twin { gap: 8px; } .row.twin .btn { flex: 1; margin: 0; }
 .prow { justify-content: space-around; }
 #pasteBtn { border-color: var(--y); color: var(--y); font-weight: 700; }
+.autobtn { flex: none; border: 1px solid var(--line2); background: none; color: var(--mut); border-radius: 10px; padding: 8px 7px; font: 700 11px Orbitron, sans-serif; letter-spacing: .06em; }
+.autobtn[aria-pressed=true] { background: var(--y); color: #000; border-color: var(--y); box-shadow: var(--glow); }
+.autobtn:disabled { opacity: .35; }
+.prow .tone { gap: 4px; } .prow .tone button { width: 30px; height: 30px; font-size: 18px; }

@@ -9,7 +9,10 @@ e masterizar.
 
 O artista sobe a música dele (com ou sem voz), toca em **Separar voz (IA)**, cola a letra no **teleprompter**
 (velocidade de rolagem 1–20, atraso do início em segundos, arrastar para ajustar, tocar para pausar; fica salvo
-por música no aparelho) e grava: a música começa sozinha depois da contagem. O catálogo de bases de teste
+por música no aparelho) e grava: a música começa sozinha depois da contagem. Depois de separar a voz, o teleprompter entra no **AUTO**: a voz separada mostra onde o cantor original
+canta (volume em janelas de 50 ms), e a letra fica parada na introdução e nos solos e anda só durante o canto,
+chegando ao fim junto com o fim do canto. Arrastar e pausar continuam valendo; mexer na velocidade volta ao manual.
+O catálogo de bases de teste
 continua no código (`?musica=ciranda`), fora da tela inicial.
 
 ## Como funciona

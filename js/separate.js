@@ -207,5 +207,6 @@ export async function removeVoice(ctx, buffer, { onDownload = () => {}, onProgre
     for (let i = 0; i < len; i++) b[i] = s[i] - v[i];
     out.copyToChannel(b, c);
   }
+  out.voice = voice; // a voz separada também volta: o app usa para saber onde o cantor canta
   return out;
 }

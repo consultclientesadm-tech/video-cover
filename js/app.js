@@ -16,7 +16,8 @@ const S = {
   phones: false, recording: false, previewing: null, recorder: null, chunks: [], voice: [], voiceStartFrame: 0,
   baseStart: 0, raf: 0, blob: null, ext: 'mp4', mime: '',
   // teleprompter: texto colado, velocidade (1–20), atraso do início (s), posição atual (px), pausado
-  pr: { text: '', speed: 5, delay: 0, pos: 0, paused: false, last: 0 },
+  pr: { text: '', speed: 5, delay: 0, pos: 0, paused: false, last: 0, auto: false, off: 0 },
+  sing: null, // trechos em que o cantor original canta: { seg: [[ini, fim], ...] (s), total }
 };
 
 // ---------- Telas ----------
@@ -237,6 +238,7 @@ $('removeVoice').onclick = async () => {
     });
     S.original = bed; S.buffers.clear(); S.buffers.set('0|1', bed);
     rv.textContent = 'Voz separada ✓';
+    findSinging(bed.voice, bed.sampleRate);
     if (S.semis || S.speed !== 1) await bufferForTone();
   } catch (e) {
     console.error(e);
@@ -473,12 +475,13 @@ const prKey = () => 'vc-pr:' + (S.song?.file ? S.song.file.name + ':' + S.song.f
 function setupPrompter(song) {
   const on = !!song.file;
   $('prompter').hidden = !on; $('prow').hidden = !on; $('pasteBtn').hidden = !on; $('lyrics').hidden = on;
-  S.pr = { text: '', speed: 5, delay: 0, pos: 0, paused: false, last: 0 };
+  S.pr = { text: '', speed: 5, delay: 0, pos: 0, paused: false, last: 0, auto: false, off: 0 };
+  S.sing = null;
   if (on) {
     try { Object.assign(S.pr, JSON.parse(localStorage.getItem(prKey()) || '{}')); } catch {}
     S.pr.pos = 0; S.pr.paused = false;
   }
-  renderPrompterText(); renderPrompterCtl(); placePrompter();
+  renderPrompterText(); renderPrompterCtl(); placePrompter(); setAuto(false);
 }
 function savePrompter() {
   try { localStorage.setItem(prKey(), JSON.stringify({ text: S.pr.text, speed: S.pr.speed, delay: S.pr.delay })); } catch {}
@@ -490,25 +493,81 @@ function renderPrompterText() {
 }
 function renderPrompterCtl() {
   $('pSpeed').textContent = S.pr.speed;
-  $('pDelay').textContent = S.pr.delay + 's';
+  $('pDelay').textContent = String(S.pr.delay).replace('.', ',') + 's';
   $('pSlow').disabled = S.pr.speed <= 1; $('pFast').disabled = S.pr.speed >= 20;
   $('dLess').disabled = S.pr.delay <= 0; $('dMore').disabled = S.pr.delay >= 60;
 }
 function placePrompter() { $('ptext').style.transform = `translateY(${-Math.round(S.pr.pos)}px)`; $('ppause').hidden = !S.pr.paused; }
-function resetPrompter() { S.pr.pos = 0; S.pr.paused = false; S.pr.last = 0; placePrompter(); }
+function resetPrompter() { S.pr.pos = 0; S.pr.off = 0; S.pr.paused = false; S.pr.last = 0; placePrompter(); }
 // chamada a cada quadro enquanto a música toca (t = segundos desde o começo da base)
 function stepPrompter(t) {
   if ($('prompter').hidden || !S.pr.text) return;
   const now = performance.now(), dt = S.pr.last ? Math.min(0.1, (now - S.pr.last) / 1000) : 0;
   S.pr.last = now;
-  if (t >= S.pr.delay && !S.pr.paused && !drag) S.pr.pos = Math.min(maxPos(), S.pr.pos + dt * S.pr.speed * PX);
+  if (S.pr.auto && S.sing) {
+    // Automático: a letra anda só enquanto o cantor original canta (parada na introdução e nos solos),
+    // num ritmo que faz a última linha chegar junto com o fim do canto. Chega um pouquinho antes (LEAD).
+    const target = travel() * sungFraction((t + LEAD) * S.speed) + S.pr.off;
+    if (S.pr.paused || drag) S.pr.off = S.pr.pos - (target - S.pr.off); // guarda o ajuste do artista
+    else S.pr.pos = Math.max(0, Math.min(maxPos(), target));
+  } else if (t >= S.pr.delay && !S.pr.paused && !drag) S.pr.pos = Math.min(maxPos(), S.pr.pos + dt * S.pr.speed * PX);
   placePrompter();
 }
+const LEAD = 0.5;
+// quanto da letra precisa passar pela linha de leitura: o texto todo menos a última linha
+function travel() {
+  const el = $('ptext'), cs = getComputedStyle(el);
+  const h = el.scrollHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  return Math.max(0, h - parseFloat(cs.lineHeight || 30));
+}
+// fração do canto que já aconteceu até o instante x (tempo da música original)
+function sungFraction(x) {
+  const { seg, total } = S.sing;
+  let done = 0;
+  for (const [a, b] of seg) { if (x <= a) break; done += Math.min(x, b) - a; }
+  return Math.max(0, Math.min(1, done / total));
+}
+
+// Acha os trechos com canto na voz separada: volume em janelas de 50 ms, limiar relativo à própria voz,
+// junta respiros curtos (< 0,8 s) e ignora ruídos soltos (< 0,3 s).
+function findSinging(voice, sr) {
+  const hop = Math.round(sr * 0.05), L = voice[0], R = voice[1] || voice[0], n = Math.floor(L.length / hop);
+  const db = new Float32Array(n);
+  for (let k = 0; k < n; k++) {
+    let e = 0;
+    for (let i = k * hop, j = i + hop; i < j; i++) { const v = (L[i] + R[i]) * 0.5; e += v * v; }
+    db[k] = 10 * Math.log10(e / hop + 1e-12);
+  }
+  const sorted = Float32Array.from(db).sort();
+  const loud = sorted[Math.floor(n * 0.95)];
+  const thr = Math.max(-50, loud - 22);
+  let seg = [], on = -1;
+  for (let k = 0; k <= n; k++) {
+    const act = k < n && db[k] > thr;
+    if (act && on < 0) on = k;
+    if (!act && on >= 0) { seg.push([on * 0.05, k * 0.05]); on = -1; }
+  }
+  const merged = [];
+  for (const g of seg) { const last = merged[merged.length - 1]; if (last && g[0] - last[1] < 0.8) last[1] = g[1]; else merged.push(g.slice()); }
+  seg = merged.filter(([a, b]) => b - a >= 0.3);
+  const total = seg.reduce((x, [a, b]) => x + b - a, 0);
+  if (loud < -45 || total < 5) { S.sing = null; setAuto(false); return; } // sem voz (era só a base): fica no manual
+  S.sing = { seg, total };
+  // o início da letra também fica certo no modo manual: começa onde o canto começa
+  S.pr.delay = Math.max(0, Math.round((seg[0][0] - LEAD) * 2) / 2);
+  setAuto(true); renderPrompterCtl();
+}
+function setAuto(on) {
+  S.pr.auto = !!on && !!S.sing; S.pr.off = 0;
+  $('autoBtn').setAttribute('aria-pressed', S.pr.auto);
+  $('autoBtn').disabled = !S.sing;
+}
+$('autoBtn').onclick = () => setAuto(!S.pr.auto);
 const maxPos = () => Math.max(0, $('ptext').scrollHeight - innerHeight * 0.6 - 40);
-$('pSlow').onclick = () => { S.pr.speed = Math.max(1, S.pr.speed - 1); renderPrompterCtl(); savePrompter(); };
-$('pFast').onclick = () => { S.pr.speed = Math.min(20, S.pr.speed + 1); renderPrompterCtl(); savePrompter(); };
-$('dLess').onclick = () => { S.pr.delay = Math.max(0, S.pr.delay - 1); renderPrompterCtl(); savePrompter(); };
-$('dMore').onclick = () => { S.pr.delay = Math.min(60, S.pr.delay + 1); renderPrompterCtl(); savePrompter(); };
+$('pSlow').onclick = () => { setAuto(false); S.pr.speed = Math.max(1, S.pr.speed - 1); renderPrompterCtl(); savePrompter(); };
+$('pFast').onclick = () => { setAuto(false); S.pr.speed = Math.min(20, S.pr.speed + 1); renderPrompterCtl(); savePrompter(); };
+$('dLess').onclick = () => { S.pr.delay = Math.max(0, Math.ceil(S.pr.delay) - 1); renderPrompterCtl(); savePrompter(); };
+$('dMore').onclick = () => { S.pr.delay = Math.min(60, Math.floor(S.pr.delay) + 1); renderPrompterCtl(); savePrompter(); };
 $('pasteBtn').onclick = () => { $('lyricsText').value = S.pr.text; $('sheet').hidden = false; setTimeout(() => $('lyricsText').focus(), 50); };
 $('sheetCancel').onclick = () => { $('sheet').hidden = true; };
 $('sheetSave').onclick = () => {
