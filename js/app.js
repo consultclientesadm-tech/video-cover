@@ -3,6 +3,7 @@
 // direto do arquivo, misturada com a voz do microfone. Assim o vazamento da caixa fica escondido.
 import { transpose } from './pitch.js';
 import { removeVoice, prefetchModel } from './separate.js';
+import { transcribe, SemChave } from './lyricsai.js';
 
 const $ = (id) => document.getElementById(id);
 const app = $('app');
@@ -239,6 +240,7 @@ $('removeVoice').onclick = async () => {
     S.original = bed; S.buffers.clear(); S.buffers.set('0|1', bed);
     rv.textContent = 'Voz separada ✓';
     findSinging(bed.voice, bed.sampleRate);
+    if (S.sing) await autoLyrics(bed.voice, bed.sampleRate, rv);
     if (S.semis || S.speed !== 1) await bufferForTone();
   } catch (e) {
     console.error(e);
@@ -401,7 +403,16 @@ function renderLyrics(t) {
     return;
   }
   // a cor vai preenchendo a linha enquanto ela é cantada (85% do tempo da linha)
-  const p = Math.max(0, Math.min(1, (t - cur.inicio) / ((cur.fim - cur.inicio) * 0.85)));
+  let p = Math.max(0, Math.min(1, (t - cur.inicio) / ((cur.fim - cur.inicio) * 0.85)));
+  if (cur.palavras) {
+    // letra da IA: a cor anda palavra por palavra, no tempo em que o cantor original canta cada uma
+    let tot = 0, done = 0;
+    for (const w of cur.palavras) {
+      const n = w.w.length + 1; tot += n;
+      if (t >= w.e) done += n; else if (t > w.s) done += n * (t - w.s) / Math.max(0.05, w.e - w.s);
+    }
+    p = tot ? done / tot : p;
+  }
   $('lyCur').textContent = cur.texto;
   $('lyCur').style.setProperty('--p', (p * 100).toFixed(1) + '%');
   $('lyNext').textContent = L[i + 1]?.texto || '';
@@ -410,7 +421,8 @@ function renderLyrics(t) {
 // Marcação de entrada: antes da primeira linha (e de toda linha que vem depois de uma pausa), aparecem
 // setas, uma por tempo do compasso, acendendo no ritmo da música. Quando a última acende, é hora de cantar.
 function renderCue(t, L) {
-  const cue = $('cue'), bpm = S.song?.bpm, n = S.song?.compasso || 4;
+  // letra da IA não tem BPM: usa 4 setas a cada 0,6 s antes de cada entrada depois de uma pausa
+  const cue = $('cue'), bpm = S.song?.bpm || (L[0]?.palavras ? 100 : 0), n = S.song?.compasso || 4;
   if (!bpm || !L.length) { cue.hidden = true; return; }
   const spb = 60 / bpm;
   const i = L.findIndex((l, k) => t < l.inicio + 0.45 && (k === 0 || l.inicio - L[k - 1].fim >= spb));
@@ -467,6 +479,28 @@ function voiceWav() {
   return new Blob([b], { type: 'audio/wav' });
 }
 
+// ---------- Letra automática (IA ouve a voz separada) ----------
+async function autoLyrics(voice, sr, rv) {
+  rv.textContent = 'Lendo a letra…';
+  try {
+    const lines = await transcribe(voice, sr, S.sing.seg, { onProgress: (p) => { rv.textContent = `Lendo a letra… ${Math.round(p * 100)}%`; } });
+    if (!lines.length) { rv.textContent = 'Voz separada ✓ (não consegui ler a letra)'; return; }
+    setKaraoke(lines);
+    rv.textContent = 'Voz separada ✓ Letra pronta ✓';
+  } catch (e) {
+    console.warn(e);
+    rv.textContent = e instanceof SemChave ? 'Voz separada ✓' : 'Voz separada ✓ (letra automática falhou: cole a letra)';
+  }
+}
+// Modo karaokê: a letra com tempo vira as linhas do topo (com as setas e o preenchimento por palavra)
+function setKaraoke(lines) {
+  S.song.letra = lines;
+  const on = !!lines?.length;
+  $('lyrics').hidden = !on; $('prompter').hidden = on; $('prow').hidden = on;
+  $('pasteBtn').textContent = on ? 'Corrigir letra' : (S.pr.text.trim() ? 'Editar letra' : 'Colar letra');
+  renderLyrics(0);
+}
+
 // ---------- Teleprompter ----------
 // O artista cola a letra; ela sobe pela tela na velocidade que ele escolher, começando depois do atraso
 // (para pular a introdução). Dá para arrastar com o dedo para acertar a posição e tocar para pausar.
@@ -475,6 +509,7 @@ const prKey = () => 'vc-pr:' + (S.song?.file ? S.song.file.name + ':' + S.song.f
 function setupPrompter(song) {
   const on = !!song.file;
   $('prompter').hidden = !on; $('prow').hidden = !on; $('pasteBtn').hidden = !on; $('lyrics').hidden = on;
+  if (on) song.letra = [];
   S.pr = { text: '', speed: 5, delay: 0, pos: 0, paused: false, last: 0, auto: false, off: 0 };
   S.sing = null;
   if (on) {
@@ -568,10 +603,20 @@ $('pSlow').onclick = () => { setAuto(false); S.pr.speed = Math.max(1, S.pr.speed
 $('pFast').onclick = () => { setAuto(false); S.pr.speed = Math.min(20, S.pr.speed + 1); renderPrompterCtl(); savePrompter(); };
 $('dLess').onclick = () => { S.pr.delay = Math.max(0, Math.ceil(S.pr.delay) - 1); renderPrompterCtl(); savePrompter(); };
 $('dMore').onclick = () => { S.pr.delay = Math.min(60, Math.floor(S.pr.delay) + 1); renderPrompterCtl(); savePrompter(); };
-$('pasteBtn').onclick = () => { $('lyricsText').value = S.pr.text; $('sheet').hidden = false; setTimeout(() => $('lyricsText').focus(), 50); };
+$('pasteBtn').onclick = () => { $('lyricsText').value = S.song?.letra?.length ? S.song.letra.map((l) => l.texto).join('\n') : S.pr.text; $('sheet').hidden = false; setTimeout(() => $('lyricsText').focus(), 50); };
 $('sheetCancel').onclick = () => { $('sheet').hidden = true; };
 $('sheetSave').onclick = () => {
-  S.pr.text = $('lyricsText').value.replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').trim();
+  const txt = $('lyricsText').value.replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').trim();
+  if (S.song?.letra?.length) {
+    // corrigiu a letra da IA: com o mesmo número de linhas, mantém o tempo de cada linha e troca o texto
+    const rows = txt.split('\n').map((x) => x.trim()).filter(Boolean);
+    if (rows.length === S.song.letra.length) {
+      S.song.letra.forEach((l, i) => { if (l.texto !== rows[i]) { l.texto = rows[i]; delete l.palavras; } });
+      $('sheet').hidden = true; renderLyrics(0); return;
+    }
+    setKaraoke(null); // mudou a quantidade de linhas: volta para o teleprompter automático
+  }
+  S.pr.text = txt;
   $('sheet').hidden = true; resetPrompter(); renderPrompterText(); savePrompter();
 };
 // arrastar para ajustar a posição; um toque (sem arrastar) pausa ou continua

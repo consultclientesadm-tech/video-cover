@@ -12,6 +12,11 @@ O artista sobe a música dele (com ou sem voz), toca em **Separar voz (IA)**, co
 por música no aparelho) e grava: a música começa sozinha depois da contagem. Depois de separar a voz, o teleprompter entra no **AUTO**: a voz separada mostra onde o cantor original
 canta (volume em janelas de 50 ms), e a letra fica parada na introdução e nos solos e anda só durante o canto,
 chegando ao fim junto com o fim do canto. Arrastar e pausar continuam valendo; mexer na velocidade volta ao manual.
+**Letra automática:** depois de separar a voz, o app manda só a voz separada (mono 16 kHz, em pedaços de até
+~2 min cortados nas pausas) para `api/transcribe.js` (função do Vercel), que chama o Whisper do Groq
+(`whisper-large-v3-turbo`) e devolve cada palavra com o tempo. As palavras viram linhas de karaokê com
+preenchimento palavra por palavra e setas de entrada. Precisa da variável `GROQ_API_KEY` no Vercel; sem ela o app
+fica no teleprompter. "Corrigir letra" mantém o tempo se o número de linhas não mudar.
 O catálogo de bases de teste
 continua no código (`?musica=ciranda`), fora da tela inicial.
 
